@@ -1,138 +1,41 @@
 import { useEffect, useState } from "react";
 import "./index.css";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api";
-const API_URL = API_BASE_URL + "/servers/";
+const API_BASE = "http://3.80.121.44/api";
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("access_token"));
+  const [token, setToken] = useState(
+    localStorage.getItem("access_token")
+  );
 
-  const [isLogin, setIsLogin] = useState(true);
-
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [password2, setPassword2] = useState("");
+  const [page, setPage] = useState(
+    token ? "dashboard" : "login"
+  );
 
   const [servers, setServers] = useState([]);
 
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [dashboard, setDashboard] = useState({
+    total_servers: 0,
+    running: 0,
+    stopped: 0,
+    successful_deployments: 0,
+    failed_deployments: 0,
+  });
 
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingServer, setEditingServer] = useState(null);
+  const [loginData, setLoginData] = useState({
+    username: "",
+    password: "",
+  });
 
-  const [serverName, setServerName] = useState("");
-  const [ipAddress, setIpAddress] = useState("");
-  const [serverStatus, setServerStatus] = useState("running");
-  const [serverType, setServerType] = useState("Application");
-
-  useEffect(function () {
-    if (token) {
-      loadServers();
-    }
-  }, [token]);
-
-  async function login(event) {
-    event.preventDefault();
-
-    setLoading(true);
-    setError("");
-    setMessage("");
-
-    try {
-      const response = await fetch(
-        API_BASE_URL + "/auth/login/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username: username,
-            password: password,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error("Invalid username or password.");
-      }
-
-      localStorage.setItem("access_token", data.access);
-      localStorage.setItem("refresh_token", data.refresh);
-
-      setToken(data.access);
-      setMessage("Login successful.");
-
-      setPassword("");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function register(event) {
-    event.preventDefault();
-
-    setLoading(true);
-    setError("");
-    setMessage("");
-
-    if (password !== password2) {
-      setError("Passwords do not match.");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        API_BASE_URL + "/auth/register/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            username: username,
-            email: email,
-            password: password,
-            password2: password2,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (data.username) {
-          throw new Error(data.username[0]);
-        }
-
-        if (data.password) {
-          throw new Error(data.password[0]);
-        }
-
-        throw new Error("Registration failed.");
-      }
-
-      setMessage("Registration successful. Please login.");
-
-      setIsLogin(true);
-      setPassword("");
-      setPassword2("");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [registerData, setRegisterData] = useState({
+    username: "",
+    email: "",
+    password: "",
+  });
 
   function logout() {
     localStorage.removeItem("access_token");
@@ -140,710 +43,815 @@ function App() {
 
     setToken(null);
     setServers([]);
-    setMessage("");
-    setError("");
+    setPage("login");
   }
 
   async function loadServers() {
-    setLoading(true);
-    setError("");
+    const currentToken =
+      localStorage.getItem("access_token");
 
-    try {
-      const response = await fetch(API_URL, {
-        method: "GET",
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      });
-
-      if (response.status === 401) {
-        logout();
-        throw new Error("Session expired. Please login again.");
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error("Failed to load servers.");
-      }
-
-      setServers(data.servers || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function resetForm() {
-    setServerName("");
-    setIpAddress("");
-    setServerStatus("running");
-    setServerType("Application");
-    setEditingServer(null);
-    setShowForm(false);
-  }
-
-  function startAddServer() {
-    setMessage("");
-    setError("");
-
-    setServerName("");
-    setIpAddress("");
-    setServerStatus("running");
-    setServerType("Application");
-
-    setEditingServer(null);
-    setShowForm(true);
-  }
-
-  function startEditServer(server) {
-    setMessage("");
-    setError("");
-
-    setServerName(server.name);
-    setIpAddress(server.ip_address);
-    setServerStatus(server.status);
-    setServerType(server.server_type);
-
-    setEditingServer(server);
-    setShowForm(true);
-  }
-
-  async function saveServer(event) {
-    event.preventDefault();
-
-    setLoading(true);
-    setMessage("");
-    setError("");
-
-    const serverData = {
-      name: serverName,
-      ip_address: ipAddress,
-      status: serverStatus,
-      server_type: serverType,
-    };
-
-    try {
-      let response;
-
-      if (editingServer) {
-        response = await fetch(
-          API_URL + editingServer.id + "/",
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + token,
-            },
-            body: JSON.stringify(serverData),
-          }
-        );
-      } else {
-        response = await fetch(API_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
-          },
-          body: JSON.stringify(serverData),
-        });
-      }
-
-      if (response.status === 401) {
-        logout();
-        throw new Error("Session expired. Please login again.");
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error("Unable to save server.");
-      }
-
-      if (editingServer) {
-        setMessage("Server updated successfully.");
-      } else {
-        setMessage("Server created successfully.");
-      }
-
-      resetForm();
-      await loadServers();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function deleteServer(id) {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this server?"
-    );
-
-    if (!confirmed) {
+    if (!currentToken) {
       return;
     }
 
-    setLoading(true);
-    setMessage("");
-    setError("");
-
     try {
+      setLoading(true);
+      setError("");
+
       const response = await fetch(
-        API_URL + id + "/",
+        API_BASE + "/servers/",
         {
-          method: "DELETE",
+          method: "GET",
           headers: {
-            Authorization: "Bearer " + token,
+            Authorization:
+              "Bearer " + currentToken,
+            "Content-Type": "application/json",
           },
         }
       );
 
       if (response.status === 401) {
         logout();
-        throw new Error("Session expired. Please login again.");
+        return;
       }
 
       if (!response.ok) {
-        throw new Error("Failed to delete server.");
+        throw new Error(
+          "Failed to load servers"
+        );
       }
 
-      setMessage("Server deleted successfully.");
+      const data = await response.json();
 
-      await loadServers();
+      setServers(data.servers || []);
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError(
+        "Unable to load AWS EC2 instances."
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  const filteredServers = servers.filter(function (server) {
-    const text =
-      server.name +
-      " " +
-      server.ip_address +
-      " " +
-      server.server_type +
-      " " +
-      server.status;
+  async function loadDashboard() {
+    const currentToken =
+      localStorage.getItem("access_token");
 
-    return text.toLowerCase().includes(search.toLowerCase());
-  });
+    if (!currentToken) {
+      return;
+    }
 
-  const totalServers = servers.length;
+    try {
+      const response = await fetch(
+        API_BASE + "/dashboard/",
+        {
+          method: "GET",
+          headers: {
+            Authorization:
+              "Bearer " + currentToken,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-  const runningServers = servers.filter(function (server) {
-    return server.status === "running";
-  }).length;
+      if (response.status === 401) {
+        logout();
+        return;
+      }
 
-  const stoppedServers = servers.filter(function (server) {
-    return server.status === "stopped";
-  }).length;
+      if (!response.ok) {
+        throw new Error(
+          "Failed to load dashboard"
+        );
+      }
 
-  const successfulDeployments = 5;
-  const failedDeployments = 1;
+      const data = await response.json();
 
-  if (!token) {
+      setDashboard(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function refreshData() {
+    await Promise.all([
+      loadServers(),
+      loadDashboard(),
+    ]);
+  }
+
+  useEffect(() => {
+    if (token) {
+      refreshData();
+    }
+  }, [token]);
+
+  async function handleLogin(e) {
+    e.preventDefault();
+
+    setError("");
+
+    try {
+      const response = await fetch(
+        API_BASE + "/auth/login/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(loginData),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            "Invalid username or password"
+        );
+      }
+
+      localStorage.setItem(
+        "access_token",
+        data.access
+      );
+
+      localStorage.setItem(
+        "refresh_token",
+        data.refresh
+      );
+
+      setToken(data.access);
+      setPage("dashboard");
+
+      setLoginData({
+        username: "",
+        password: "",
+      });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+
+    setError("");
+
+    try {
+      const response = await fetch(
+        API_BASE + "/auth/register/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(registerData),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const firstError =
+          data.username?.[0] ||
+          data.email?.[0] ||
+          data.password?.[0] ||
+          "Registration failed";
+
+        throw new Error(firstError);
+      }
+
+      setPage("login");
+
+      setRegisterData({
+        username: "",
+        email: "",
+        password: "",
+      });
+
+      setError(
+        "Registration successful. Please login."
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const filteredServers = servers.filter(
+    (server) => {
+      const text = search.toLowerCase();
+
+      return (
+        (server.name || "")
+          .toLowerCase()
+          .includes(text) ||
+        (server.id || "")
+          .toLowerCase()
+          .includes(text) ||
+        (server.state || "")
+          .toLowerCase()
+          .includes(text) ||
+        (server.type || "")
+          .toLowerCase()
+          .includes(text) ||
+        (server.public_ip || "")
+          .toLowerCase()
+          .includes(text)
+      );
+    }
+  );
+
+  if (!token && page === "login") {
     return (
       <div className="auth-page">
         <div className="auth-card">
-          <div className="auth-header">
-            <h1>CloudOps Automator</h1>
-            <p>AWS & DevOps Management Platform</p>
+
+          <div className="auth-logo">
+            ☁
           </div>
 
-          <div className="auth-tabs">
+          <h1>CloudOps Automator</h1>
+
+          <p className="auth-subtitle">
+            AWS & DevOps Management Platform
+          </p>
+
+          <form onSubmit={handleLogin}>
+
+            <div className="form-group">
+              <label>Username</label>
+
+              <input
+                type="text"
+                placeholder="Enter username"
+                value={loginData.username}
+                onChange={(e) =>
+                  setLoginData({
+                    ...loginData,
+                    username:
+                      e.target.value,
+                  })
+                }
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Password</label>
+
+              <input
+                type="password"
+                placeholder="Enter password"
+                value={loginData.password}
+                onChange={(e) =>
+                  setLoginData({
+                    ...loginData,
+                    password:
+                      e.target.value,
+                  })
+                }
+                required
+              />
+            </div>
+
+            {error && (
+              <div className="error-message">
+                {error}
+              </div>
+            )}
+
             <button
-              className={isLogin ? "active" : ""}
-              onClick={function () {
-                setIsLogin(true);
-                setError("");
-                setMessage("");
-              }}
+              type="submit"
+              className="primary-button"
             >
               Login
             </button>
 
+          </form>
+
+          <div className="auth-switch">
+            Don't have an account?
+
             <button
-              className={!isLogin ? "active" : ""}
-              onClick={function () {
-                setIsLogin(false);
+              type="button"
+              onClick={() => {
                 setError("");
-                setMessage("");
+                setPage("register");
               }}
             >
-              Register
+              Create account
             </button>
           </div>
 
-          {message && (
-            <div className="success-message">
-              {message}
-            </div>
-          )}
-
-          {error && (
-            <div className="error-message">
-              {error}
-            </div>
-          )}
-
-          {isLogin ? (
-            <form onSubmit={login}>
-              <div className="form-group">
-                <label>Username</label>
-
-                <input
-                  type="text"
-                  value={username}
-                  onChange={function (event) {
-                    setUsername(event.target.value);
-                  }}
-                  placeholder="Enter username"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Password</label>
-
-                <input
-                  type="password"
-                  value={password}
-                  onChange={function (event) {
-                    setPassword(event.target.value);
-                  }}
-                  placeholder="Enter password"
-                  required
-                />
-              </div>
-
-              <button
-                className="primary-button full-width"
-                type="submit"
-                disabled={loading}
-              >
-                {loading ? "Logging in..." : "Login"}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={register}>
-              <div className="form-group">
-                <label>Username</label>
-
-                <input
-                  type="text"
-                  value={username}
-                  onChange={function (event) {
-                    setUsername(event.target.value);
-                  }}
-                  placeholder="Choose username"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Email</label>
-
-                <input
-                  type="email"
-                  value={email}
-                  onChange={function (event) {
-                    setEmail(event.target.value);
-                  }}
-                  placeholder="Enter email"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Password</label>
-
-                <input
-                  type="password"
-                  value={password}
-                  onChange={function (event) {
-                    setPassword(event.target.value);
-                  }}
-                  placeholder="Minimum 8 characters"
-                  minLength="8"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Confirm Password</label>
-
-                <input
-                  type="password"
-                  value={password2}
-                  onChange={function (event) {
-                    setPassword2(event.target.value);
-                  }}
-                  placeholder="Confirm password"
-                  required
-                />
-              </div>
-
-              <button
-                className="primary-button full-width"
-                type="submit"
-                disabled={loading}
-              >
-                {loading ? "Creating..." : "Create Account"}
-              </button>
-            </form>
-          )}
         </div>
       </div>
     );
   }
 
+  if (!token && page === "register") {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+
+          <div className="auth-logo">
+            ☁
+          </div>
+
+          <h1>Create Account</h1>
+
+          <p className="auth-subtitle">
+            Start managing your cloud infrastructure
+          </p>
+
+          <form onSubmit={handleRegister}>
+
+            <div className="form-group">
+              <label>Username</label>
+
+              <input
+                type="text"
+                placeholder="Choose username"
+                value={registerData.username}
+                onChange={(e) =>
+                  setRegisterData({
+                    ...registerData,
+                    username:
+                      e.target.value,
+                  })
+                }
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Email</label>
+
+              <input
+                type="email"
+                placeholder="Enter email"
+                value={registerData.email}
+                onChange={(e) =>
+                  setRegisterData({
+                    ...registerData,
+                    email:
+                      e.target.value,
+                  })
+                }
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Password</label>
+
+              <input
+                type="password"
+                placeholder="Create password"
+                value={registerData.password}
+                onChange={(e) =>
+                  setRegisterData({
+                    ...registerData,
+                    password:
+                      e.target.value,
+                  })
+                }
+                required
+              />
+            </div>
+
+            {error && (
+              <div className="error-message">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="primary-button"
+            >
+              Create Account
+            </button>
+
+          </form>
+
+          <div className="auth-switch">
+            Already have an account?
+
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setPage("login");
+              }}
+            >
+              Login
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  const runningCount = servers.filter(
+    (server) => server.state === "running"
+  ).length;
+
+  const stoppedCount = servers.filter(
+    (server) => server.state === "stopped"
+  ).length;
+
+  const successful =
+    dashboard.successful_deployments || 0;
+
+  const failed =
+    dashboard.failed_deployments || 0;
+
+  const totalDeployments =
+    successful + failed;
+
   return (
     <div className="app">
-      <header className="top-header">
-        <div>
-          <h1>CloudOps Automator</h1>
-          <p>AWS & DevOps Management Platform</p>
+
+      <header className="header">
+
+        <div className="brand">
+
+          <div className="brand-icon">
+            ☁
+          </div>
+
+          <div>
+            <h1>
+              CloudOps Automator
+            </h1>
+
+            <p>
+              AWS & DevOps Platform
+            </p>
+          </div>
+
         </div>
 
-        <button
-          className="logout-button"
-          onClick={logout}
-        >
-          Logout
-        </button>
+        <div className="header-actions">
+
+          <div className="connection-status">
+            <span className="status-dot"></span>
+            AWS Connected
+          </div>
+
+          <button
+            className="refresh-button"
+            onClick={refreshData}
+            disabled={loading}
+          >
+            {loading
+              ? "Refreshing..."
+              : "↻ Refresh"}
+          </button>
+
+          <button
+            className="logout-button"
+            onClick={logout}
+          >
+            Logout
+          </button>
+
+        </div>
+
       </header>
 
-      <main className="container">
-        {message && (
-          <div className="success-message">
-            {message}
+      <main className="main">
+
+        <section className="page-heading">
+
+          <div>
+            <h2>Dashboard</h2>
+
+            <p>
+              Monitor and manage your AWS infrastructure
+            </p>
           </div>
-        )}
+
+        </section>
 
         {error && (
-          <div className="error-message">
+          <div className="error-banner">
             {error}
           </div>
         )}
 
-        <section className="dashboard-section">
-          <div className="section-heading">
+        <section className="stats-grid">
+
+          <div className="stat-card">
+
+            <div className="stat-icon blue">
+              ☁
+            </div>
+
             <div>
-              <h2>Dashboard</h2>
-              <p>Cloud infrastructure overview</p>
+              <span>Total Servers</span>
+
+              <strong>
+                {dashboard.total_servers ||
+                  servers.length}
+              </strong>
             </div>
 
-            <button
-              className="primary-button"
-              onClick={loadServers}
-              disabled={loading}
-            >
-              {loading ? "Loading..." : "Refresh"}
-            </button>
           </div>
 
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon">☁️</div>
-              <div>
-                <h3>Total Servers</h3>
-                <strong>{totalServers}</strong>
-              </div>
+          <div className="stat-card">
+
+            <div className="stat-icon green">
+              ●
             </div>
 
-            <div className="stat-card">
-              <div className="stat-icon">🟢</div>
-              <div>
-                <h3>Running</h3>
-                <strong>{runningServers}</strong>
-              </div>
+            <div>
+              <span>Running</span>
+
+              <strong>
+                {dashboard.running ??
+                  runningCount}
+              </strong>
             </div>
 
-            <div className="stat-card">
-              <div className="stat-icon">🔴</div>
-              <div>
-                <h3>Stopped</h3>
-                <strong>{stoppedServers}</strong>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon">🚀</div>
-              <div>
-                <h3>Deployments</h3>
-                <strong>
-                  {successfulDeployments + failedDeployments}
-                </strong>
-              </div>
-            </div>
           </div>
+
+          <div className="stat-card">
+
+            <div className="stat-icon orange">
+              ■
+            </div>
+
+            <div>
+              <span>Stopped</span>
+
+              <strong>
+                {dashboard.stopped ??
+                  stoppedCount}
+              </strong>
+            </div>
+
+          </div>
+
+          <div className="stat-card">
+
+            <div className="stat-icon purple">
+              ⚡
+            </div>
+
+            <div>
+              <span>Deployments</span>
+
+              <strong>
+                {totalDeployments}
+              </strong>
+            </div>
+
+          </div>
+
         </section>
 
-        <section className="servers-section">
-          <div className="section-heading">
+        <section className="section">
+
+          <div className="section-header">
+
             <div>
-              <h2>Servers</h2>
-              <p>Manage your infrastructure</p>
+              <h3>AWS EC2 Instances</h3>
+
+              <p>
+                Live instances from your AWS account
+              </p>
             </div>
 
-            <button
-              className="primary-button"
-              onClick={startAddServer}
-            >
-              + Add Server
-            </button>
+            <div className="server-count">
+              {filteredServers.length} instances
+            </div>
+
           </div>
 
           <div className="toolbar">
+
             <input
               className="search-input"
               type="text"
-              placeholder="Search servers..."
+              placeholder="Search instances..."
               value={search}
-              onChange={function (event) {
-                setSearch(event.target.value);
-              }}
+              onChange={(e) =>
+                setSearch(e.target.value)
+              }
             />
+
+            <button
+              className="secondary-button"
+              onClick={refreshData}
+            >
+              Refresh
+            </button>
+
           </div>
 
-          {showForm && (
-            <div className="server-form-card">
-              <div className="section-heading">
-                <div>
-                  <h2>
-                    {editingServer
-                      ? "Edit Server"
-                      : "Add New Server"}
-                  </h2>
-                </div>
-              </div>
+          <div className="table-wrapper">
 
-              <form onSubmit={saveServer}>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Server Name</label>
-
-                    <input
-                      type="text"
-                      value={serverName}
-                      onChange={function (event) {
-                        setServerName(event.target.value);
-                      }}
-                      placeholder="Example: Web Server"
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>IP Address</label>
-
-                    <input
-                      type="text"
-                      value={ipAddress}
-                      onChange={function (event) {
-                        setIpAddress(event.target.value);
-                      }}
-                      placeholder="192.168.1.10"
-                      required
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Status</label>
-
-                    <select
-                      value={serverStatus}
-                      onChange={function (event) {
-                        setServerStatus(event.target.value);
-                      }}
-                    >
-                      <option value="running">
-                        Running
-                      </option>
-
-                      <option value="stopped">
-                        Stopped
-                      </option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Server Type</label>
-
-                    <select
-                      value={serverType}
-                      onChange={function (event) {
-                        setServerType(event.target.value);
-                      }}
-                    >
-                      <option value="Web">
-                        Web
-                      </option>
-
-                      <option value="Database">
-                        Database
-                      </option>
-
-                      <option value="Application">
-                        Application
-                      </option>
-
-                      <option value="Load Balancer">
-                        Load Balancer
-                      </option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-actions">
-                  <button
-                    type="submit"
-                    className="primary-button"
-                    disabled={loading}
-                  >
-                    {editingServer
-                      ? "Update Server"
-                      : "Create Server"}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={resetForm}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div className="table-container">
             <table className="server-table">
+
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>IP Address</th>
-                  <th>Type</th>
+                  <th>Instance</th>
                   <th>Status</th>
-                  <th>Created</th>
-                  <th>Actions</th>
+                  <th>Type</th>
+                  <th>Public IP</th>
+                  <th>Private IP</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredServers.length === 0 ? (
+
+                {loading &&
+                servers.length === 0 ? (
                   <tr>
                     <td
-                      colSpan="7"
+                      colSpan="5"
                       className="empty-state"
                     >
-                      No servers found.
+                      Loading AWS instances...
+                    </td>
+                  </tr>
+                ) : filteredServers.length ===
+                  0 ? (
+                  <tr>
+                    <td
+                      colSpan="5"
+                      className="empty-state"
+                    >
+                      No EC2 instances found.
                     </td>
                   </tr>
                 ) : (
-                  filteredServers.map(function (server) {
-                    return (
+                  filteredServers.map(
+                    (server) => (
                       <tr key={server.id}>
-                        <td>#{server.id}</td>
 
                         <td>
-                          <strong>{server.name}</strong>
+                          <div className="instance-info">
+
+                            <div className="instance-icon">
+                              EC2
+                            </div>
+
+                            <div>
+                              <strong>
+                                {server.name}
+                              </strong>
+
+                              <small>
+                                {server.id}
+                              </small>
+                            </div>
+
+                          </div>
                         </td>
 
                         <td>
-                          {server.ip_address}
-                        </td>
 
-                        <td>
-                          {server.server_type}
-                        </td>
-
-                        <td>
                           <span
                             className={
-                              server.status === "running"
-                                ? "status-badge running"
-                                : "status-badge stopped"
+                              "status-badge " +
+                              (
+                                server.state ===
+                                "running"
+                                  ? "running"
+                                  : "stopped"
+                              )
                             }
                           >
-                            {server.status}
+                            <span className="badge-dot"></span>
+
+                            {server.state}
+                          </span>
+
+                        </td>
+
+                        <td>
+                          <span className="instance-type">
+                            {server.type}
                           </span>
                         </td>
 
                         <td>
-                          {new Date(
-                            server.created_at
-                          ).toLocaleDateString()}
+                          <code>
+                            {server.public_ip ||
+                              "No Public IP"}
+                          </code>
                         </td>
 
                         <td>
-                          <div className="action-buttons">
-                            <button
-                              className="edit-button"
-                              onClick={function () {
-                                startEditServer(server);
-                              }}
-                            >
-                              Edit
-                            </button>
-
-                            <button
-                              className="delete-button"
-                              onClick={function () {
-                                deleteServer(server.id);
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </div>
+                          <code>
+                            {server.private_ip ||
+                              "No Private IP"}
+                          </code>
                         </td>
+
                       </tr>
-                    );
-                  })
+                    )
+                  )
                 )}
+
               </tbody>
+
             </table>
+
           </div>
+
         </section>
 
-        <section className="deployment-section">
-          <div className="section-heading">
+        <section className="section">
+
+          <div className="section-header">
+
             <div>
-              <h2>Deployment Status</h2>
-              <p>CI/CD deployment overview</p>
+              <h3>
+                Deployment Overview
+              </h3>
+
+              <p>
+                CI/CD deployment statistics
+              </p>
             </div>
+
           </div>
 
           <div className="deployment-grid">
-            <div className="deployment-card">
-              <span>Successful Deployments</span>
-              <strong>{successfulDeployments}</strong>
+
+            <div className="deployment-card success">
+
+              <div className="deployment-icon">
+                ✓
+              </div>
+
+              <div>
+                <span>Successful</span>
+
+                <strong>
+                  {successful}
+                </strong>
+              </div>
+
             </div>
 
-            <div className="deployment-card">
-              <span>Failed Deployments</span>
-              <strong>{failedDeployments}</strong>
+            <div className="deployment-card failed">
+
+              <div className="deployment-icon">
+                !
+              </div>
+
+              <div>
+                <span>Failed</span>
+
+                <strong>
+                  {failed}
+                </strong>
+              </div>
+
             </div>
 
-            <div className="deployment-card">
-              <span>System Status</span>
-              <strong>Healthy</strong>
+            <div className="deployment-card total">
+
+              <div className="deployment-icon">
+                #
+              </div>
+
+              <div>
+                <span>Total</span>
+
+                <strong>
+                  {totalDeployments}
+                </strong>
+              </div>
+
             </div>
+
           </div>
+
         </section>
+
       </main>
 
       <footer className="footer">
-        <p>
-          CloudOps Automator • AWS & DevOps Management Platform
-        </p>
+
+        <span>
+          CloudOps Automator
+        </span>
+
+        <span>
+          AWS & DevOps Management Platform
+        </span>
+
       </footer>
+
     </div>
   );
 }
