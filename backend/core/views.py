@@ -98,12 +98,12 @@ def servers(request):
                     "id": instance["id"],
                     "name": instance["name"],
                     "status": server_status,
-                    "ip_address": (
-                        instance["public_ip"]
-                        if instance["public_ip"] != "No Public IP"
-                        else instance["private_ip"]
-                    ),
+                    "state": state,
+                    "ip_address": instance["public_ip"],
+                    "public_ip": instance["public_ip"],
+                    "private_ip": instance["private_ip"],
                     "server_type": instance["type"],
+                    "type": instance["type"],
                     "created_at": None,
                 })
 

@@ -569,7 +569,7 @@ function App() {
           .toLowerCase()
           .includes(query) ||
         String(
-          server.type || ""
+          server.server_type || ""
         )
           .toLowerCase()
           .includes(query)
@@ -615,13 +615,13 @@ function App() {
   const runningCount =
     servers.filter(
       (server) =>
-        server.state === "running"
+        server.status === "running"
     ).length;
 
   const stoppedCount =
     servers.filter(
       (server) =>
-        server.state === "stopped"
+        server.status === "stopped"
     ).length;
 
   const successful =
@@ -1156,35 +1156,33 @@ function App() {
                           <td>
                             <span
                               className={
-                                server.state ===
+                                server.status ===
                                 "running"
                                   ? "status-badge running"
                                   : "status-badge stopped"
                               }
                             >
-                              {server.state ||
+                              {server.status ||
                                 "unknown"}
                             </span>
                           </td>
 
                           <td>
                             <span className="instance-type">
-                              {server.type ||
+                              {server.server_type ||
                                 "Unknown"}
                             </span>
                           </td>
 
                           <td>
                             <code>
-                              {server.public_ip ||
-                                "No Public IP"}
+                              {server.public_ip || "No Public IP"}
                             </code>
                           </td>
 
                           <td>
                             <code>
-                              {server.private_ip ||
-                                "No Private IP"}
+                              {server.private_ip || "No Private IP"}
                             </code>
                           </td>
 
@@ -1192,7 +1190,7 @@ function App() {
 
                             <div className="action-buttons">
 
-                              {server.state ===
+                              {server.status ===
                                 "running" ? (
                                 <button
                                   className="delete-button"
