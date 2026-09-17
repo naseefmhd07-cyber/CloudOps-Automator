@@ -16,7 +16,7 @@ cd "$PROJECT_DIR"
 
 echo "[1/8] Checking Git working tree..."
 
-if [ -n "$(git status --porcelain)" ]; then
+if [ -n "$(git status --porcelain | grep -v '^ M backend/db.sqlite3$')" ]; then
     echo "ERROR: Git working tree is not clean."
     echo "Commit or remove local changes before deployment."
     git status --short
