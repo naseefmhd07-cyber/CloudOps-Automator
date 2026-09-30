@@ -1,3 +1,6 @@
+
+import threading
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -279,12 +282,16 @@ def deployments(request):
                 status="pending"
             )
 
-            run_deployment(deployment)
-
-            deployment.refresh_from_db()
+            # Start deployment in the background.
+            # The API response does not wait for deploy.sh.
+            threading.Thread(
+                target=run_deployment,
+                args=(deployment.id,),
+                daemon=True
+            ).start()
 
             return Response({
-                "message": "Deployment created successfully",
+                "message": "Deployment started",
                 "deployment": DeploymentSerializer(
                     deployment
                 ).data,
@@ -359,3 +366,4 @@ def register(request):
         serializer.errors,
         status=400
     )
+
