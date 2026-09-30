@@ -1,6 +1,3 @@
-
-import threading
-
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -41,6 +38,7 @@ def health_check(request):
 def dashboard(request):
 
     total = Server.objects.count()
+
     running = Server.objects.filter(
         status="running"
     ).count()
@@ -151,6 +149,7 @@ def servers(request):
 def server_detail(request, pk):
 
     try:
+
         server = Server.objects.get(pk=pk)
 
     except Server.DoesNotExist:
@@ -282,13 +281,9 @@ def deployments(request):
                 status="pending"
             )
 
-            # Start deployment in the background.
-            # The API response does not wait for deploy.sh.
-            threading.Thread(
-                target=run_deployment,
-                args=(deployment.id,),
-                daemon=True
-            ).start()
+            # Start the independent systemd deployment worker.
+            # The deployment continues even if Gunicorn restarts.
+            run_deployment(deployment.id)
 
             return Response({
                 "message": "Deployment started",
@@ -366,4 +361,3 @@ def register(request):
         serializer.errors,
         status=400
     )
-

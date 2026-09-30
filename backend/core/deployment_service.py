@@ -3,9 +3,6 @@ import subprocess
 from .models import Deployment
 
 
-DEPLOYMENT_SERVICE = "cloudops-deployment.service"
-
-
 def run_deployment(deployment_id):
     """
     Start the deployment worker as an independent systemd service.
@@ -22,8 +19,10 @@ def run_deployment(deployment_id):
             update_fields=["status"]
         )
 
+        service_name = f"cloudops-deployment@{deployment_id}.service"
+
         print(
-            f"Starting deployment #{deployment_id}..."
+            f"Starting deployment worker: {service_name}"
         )
 
         result = subprocess.run(
@@ -31,7 +30,7 @@ def run_deployment(deployment_id):
                 "sudo",
                 "systemctl",
                 "start",
-                DEPLOYMENT_SERVICE,
+                service_name,
             ],
             capture_output=True,
             text=True,
@@ -68,6 +67,7 @@ def run_deployment(deployment_id):
             )
 
             deployment.status = "failed"
+
             deployment.save(
                 update_fields=["status"]
             )
