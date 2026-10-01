@@ -15,6 +15,12 @@ function App() {
   const [servers, setServers] = useState([]);
   const [deployments, setDeployments] = useState([]);
 
+  const [selectedDeployment, setSelectedDeployment] =
+    useState(null);
+
+  const [deploymentDetailsLoading, setDeploymentDetailsLoading] =
+    useState(false);
+
   const [dashboard, setDashboard] = useState({
     total_servers: 0,
     running: 0,
@@ -58,6 +64,7 @@ function App() {
     setToken(null);
     setServers([]);
     setDeployments([]);
+    setSelectedDeployment(null);
     setPage("login");
   }
 
@@ -89,7 +96,9 @@ function App() {
 
     if (response.status === 401) {
       logout();
-      throw new Error("Session expired. Please login again.");
+      throw new Error(
+        "Session expired. Please login again."
+      );
     }
 
     const contentType =
@@ -110,7 +119,10 @@ function App() {
         message = data.detail;
       } else if (data?.error) {
         message = data.error;
-      } else if (typeof data === "string" && data) {
+      } else if (
+        typeof data === "string" &&
+        data
+      ) {
         message = data;
       }
 
@@ -129,11 +141,13 @@ function App() {
       setLoading(true);
       setError("");
 
-      const data = await apiRequest("/servers/");
+      const data =
+        await apiRequest("/servers/");
 
       setServers(data.servers || []);
     } catch (err) {
       console.error(err);
+
       setError(
         err.message ||
           "Unable to load AWS EC2 instances."
@@ -152,7 +166,9 @@ function App() {
       const data =
         await apiRequest("/dashboard/");
 
-      const serverData = data.servers || {};
+      const serverData =
+        data.servers || {};
+
       const deploymentData =
         data.deployments || {};
 
@@ -176,7 +192,9 @@ function App() {
       console.error(err);
 
       if (
-        !err.message.includes("Session expired")
+        !err.message.includes(
+          "Session expired"
+        )
       ) {
         setError(
           err.message ||
@@ -204,7 +222,9 @@ function App() {
       console.error(err);
 
       if (
-        !err.message.includes("Session expired")
+        !err.message.includes(
+          "Session expired"
+        )
       ) {
         setError(
           err.message ||
@@ -214,6 +234,34 @@ function App() {
     } finally {
       setDeploymentLoading(false);
     }
+  }
+
+  async function viewDeploymentDetails(id) {
+    clearMessages();
+
+    try {
+      setDeploymentDetailsLoading(true);
+
+      const data =
+        await apiRequest(
+          `/deployments/${id}/`
+        );
+
+      setSelectedDeployment(data);
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err.message ||
+          "Unable to load deployment details."
+      );
+    } finally {
+      setDeploymentDetailsLoading(false);
+    }
+  }
+
+  function closeDeploymentDetails() {
+    setSelectedDeployment(null);
   }
 
   async function refreshData() {
@@ -248,6 +296,7 @@ function App() {
       setError(
         "Please enter username and password."
       );
+
       return;
     }
 
@@ -266,7 +315,8 @@ function App() {
         }
       );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       if (!response.ok) {
         throw new Error(
@@ -293,7 +343,10 @@ function App() {
       });
 
       setPage("dashboard");
-      setSuccess("Login successful.");
+
+      setSuccess(
+        "Login successful."
+      );
     } catch (err) {
       console.error(err);
 
@@ -320,6 +373,7 @@ function App() {
       setError(
         "Please fill all registration fields."
       );
+
       return;
     }
 
@@ -330,6 +384,7 @@ function App() {
       setError(
         "Passwords do not match."
       );
+
       return;
     }
 
@@ -350,18 +405,22 @@ function App() {
         }
       );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       if (!response.ok) {
         let message =
           "Registration failed.";
 
         if (data.username) {
-          message = data.username.join(" ");
+          message =
+            data.username.join(" ");
         } else if (data.email) {
-          message = data.email.join(" ");
+          message =
+            data.email.join(" ");
         } else if (data.password) {
-          message = data.password.join(" ");
+          message =
+            data.password.join(" ");
         }
 
         throw new Error(message);
@@ -463,6 +522,7 @@ function App() {
       setError(
         "Please fill all deployment fields."
       );
+
       return;
     }
 
@@ -526,6 +586,12 @@ function App() {
         }
       );
 
+      if (
+        selectedDeployment?.id === id
+      ) {
+        setSelectedDeployment(null);
+      }
+
       setSuccess(
         "Deployment deleted successfully."
       );
@@ -540,6 +606,16 @@ function App() {
           "Unable to delete deployment."
       );
     }
+  }
+
+  function formatDate(value) {
+    if (!value) {
+      return "—";
+    }
+
+    return new Date(
+      value
+    ).toLocaleString();
   }
 
   const filteredServers =
@@ -638,6 +714,7 @@ function App() {
     return (
       <div className="auth-page">
         <div className="auth-card">
+
           <div className="auth-header">
             <div className="auth-logo">
               ☁️
@@ -647,7 +724,7 @@ function App() {
               CloudOps Automator
             </h1>
 
-            <p>
+            <p className="auth-subtitle">
               AWS & DevOps Management
               Platform
             </p>
@@ -690,6 +767,7 @@ function App() {
           >
             <label>
               Username
+
               <input
                 type="text"
                 value={
@@ -708,6 +786,7 @@ function App() {
 
             <label>
               Password
+
               <input
                 type="password"
                 value={
@@ -734,6 +813,7 @@ function App() {
                 : "Login"}
             </button>
           </form>
+
         </div>
       </div>
     );
@@ -746,6 +826,7 @@ function App() {
     return (
       <div className="auth-page">
         <div className="auth-card">
+
           <div className="auth-header">
             <div className="auth-logo">
               ☁️
@@ -755,7 +836,7 @@ function App() {
               Create Account
             </h1>
 
-            <p>
+            <p className="auth-subtitle">
               CloudOps Automator
             </p>
           </div>
@@ -797,6 +878,7 @@ function App() {
           >
             <label>
               Username
+
               <input
                 type="text"
                 value={
@@ -815,6 +897,7 @@ function App() {
 
             <label>
               Email
+
               <input
                 type="email"
                 value={
@@ -833,6 +916,7 @@ function App() {
 
             <label>
               Password
+
               <input
                 type="password"
                 value={
@@ -851,6 +935,7 @@ function App() {
 
             <label>
               Confirm Password
+
               <input
                 type="password"
                 value={
@@ -877,6 +962,7 @@ function App() {
                 : "Create Account"}
             </button>
           </form>
+
         </div>
       </div>
     );
@@ -908,6 +994,7 @@ function App() {
             }
             onClick={() => {
               clearMessages();
+              setSelectedDeployment(null);
               setPage("dashboard");
             }}
           >
@@ -922,6 +1009,7 @@ function App() {
             }
             onClick={() => {
               clearMessages();
+              setSelectedDeployment(null);
               setPage("deployments");
               loadDeployments();
             }}
@@ -1092,29 +1180,12 @@ function App() {
 
                   <thead>
                     <tr>
-                      <th>
-                        Instance
-                      </th>
-
-                      <th>
-                        State
-                      </th>
-
-                      <th>
-                        Type
-                      </th>
-
-                      <th>
-                        Public IP
-                      </th>
-
-                      <th>
-                        Private IP
-                      </th>
-
-                      <th>
-                        Actions
-                      </th>
+                      <th>Instance</th>
+                      <th>State</th>
+                      <th>Type</th>
+                      <th>Public IP</th>
+                      <th>Private IP</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
 
@@ -1176,18 +1247,19 @@ function App() {
 
                           <td>
                             <code>
-                              {server.public_ip || "No Public IP"}
+                              {server.public_ip ||
+                                "No Public IP"}
                             </code>
                           </td>
 
                           <td>
                             <code>
-                              {server.private_ip || "No Private IP"}
+                              {server.private_ip ||
+                                "No Private IP"}
                             </code>
                           </td>
 
                           <td>
-
                             <div className="action-buttons">
 
                               {server.status ===
@@ -1216,7 +1288,6 @@ function App() {
                               )}
 
                             </div>
-
                           </td>
 
                         </tr>
@@ -1264,7 +1335,6 @@ function App() {
               <div className="deployment-grid">
 
                 <div className="deployment-card success">
-
                   <div className="deployment-icon">
                     ✓
                   </div>
@@ -1278,11 +1348,9 @@ function App() {
                       {successful}
                     </strong>
                   </div>
-
                 </div>
 
                 <div className="deployment-card failed">
-
                   <div className="deployment-icon">
                     !
                   </div>
@@ -1296,11 +1364,9 @@ function App() {
                       {failed}
                     </strong>
                   </div>
-
                 </div>
 
                 <div className="deployment-card total">
-
                   <div className="deployment-icon">
                     #
                   </div>
@@ -1314,7 +1380,6 @@ function App() {
                       {totalDeployments}
                     </strong>
                   </div>
-
                 </div>
 
               </div>
@@ -1384,9 +1449,7 @@ function App() {
                   </div>
 
                   <div>
-                    <h3>
-                      Total
-                    </h3>
+                    <h3>Total</h3>
 
                     <strong>
                       {totalDeployments}
@@ -1400,9 +1463,7 @@ function App() {
                   </div>
 
                   <div>
-                    <h3>
-                      Successful
-                    </h3>
+                    <h3>Successful</h3>
 
                     <strong>
                       {successful}
@@ -1416,9 +1477,7 @@ function App() {
                   </div>
 
                   <div>
-                    <h3>
-                      Failed
-                    </h3>
+                    <h3>Failed</h3>
 
                     <strong>
                       {failed}
@@ -1432,9 +1491,7 @@ function App() {
                   </div>
 
                   <div>
-                    <h3>
-                      Pending
-                    </h3>
+                    <h3>Pending</h3>
 
                     <strong>
                       {
@@ -1493,14 +1550,11 @@ function App() {
                           deploymentData.ec2_instance_id
                         }
                         onChange={(e) =>
-                          setDeploymentData(
-                            {
-                              ...deploymentData,
-                              ec2_instance_id:
-                                e.target
-                                  .value,
-                            }
-                          )
+                          setDeploymentData({
+                            ...deploymentData,
+                            ec2_instance_id:
+                              e.target.value,
+                          })
                         }
                         placeholder="i-xxxxxxxxxxxxxxxxx"
                       />
@@ -1515,14 +1569,11 @@ function App() {
                           deploymentData.server_name
                         }
                         onChange={(e) =>
-                          setDeploymentData(
-                            {
-                              ...deploymentData,
-                              server_name:
-                                e.target
-                                  .value,
-                            }
-                          )
+                          setDeploymentData({
+                            ...deploymentData,
+                            server_name:
+                              e.target.value,
+                          })
                         }
                         placeholder="Production Server"
                       />
@@ -1537,14 +1588,11 @@ function App() {
                           deploymentData.application
                         }
                         onChange={(e) =>
-                          setDeploymentData(
-                            {
-                              ...deploymentData,
-                              application:
-                                e.target
-                                  .value,
-                            }
-                          )
+                          setDeploymentData({
+                            ...deploymentData,
+                            application:
+                              e.target.value,
+                          })
                         }
                         placeholder="CloudOps Automator"
                       />
@@ -1559,14 +1607,11 @@ function App() {
                           deploymentData.version
                         }
                         onChange={(e) =>
-                          setDeploymentData(
-                            {
-                              ...deploymentData,
-                              version:
-                                e.target
-                                  .value,
-                            }
-                          )
+                          setDeploymentData({
+                            ...deploymentData,
+                            version:
+                              e.target.value,
+                          })
                         }
                         placeholder="v1.0.0"
                       />
@@ -1592,18 +1637,12 @@ function App() {
                       type="button"
                       className="secondary-button"
                       onClick={() =>
-                        setDeploymentData(
-                          {
-                            ec2_instance_id:
-                              "",
-                            server_name:
-                              "",
-                            application:
-                              "",
-                            version:
-                              "",
-                          }
-                        )
+                        setDeploymentData({
+                          ec2_instance_id: "",
+                          server_name: "",
+                          application: "",
+                          version: "",
+                        })
                       }
                     >
                       Clear
@@ -1654,33 +1693,13 @@ function App() {
 
                   <thead>
                     <tr>
-                      <th>
-                        ID
-                      </th>
-
-                      <th>
-                        Application
-                      </th>
-
-                      <th>
-                        Version
-                      </th>
-
-                      <th>
-                        Server
-                      </th>
-
-                      <th>
-                        Status
-                      </th>
-
-                      <th>
-                        Created
-                      </th>
-
-                      <th>
-                        Actions
-                      </th>
+                      <th>ID</th>
+                      <th>Application</th>
+                      <th>Version</th>
+                      <th>Server</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
 
@@ -1750,7 +1769,6 @@ function App() {
                           </td>
 
                           <td>
-
                             <span
                               className={
                                 "status-badge " +
@@ -1767,20 +1785,33 @@ function App() {
                                 deployment.status
                               }
                             </span>
-
                           </td>
 
                           <td>
-                            {deployment.created_at
-                              ? new Date(
-                                  deployment.created_at
-                                ).toLocaleString()
-                              : "—"}
+                            {formatDate(
+                              deployment.created_at
+                            )}
                           </td>
 
                           <td>
 
                             <div className="action-buttons">
+
+                              <button
+                                className="edit-button"
+                                onClick={() =>
+                                  viewDeploymentDetails(
+                                    deployment.id
+                                  )
+                                }
+                                disabled={
+                                  deploymentDetailsLoading
+                                }
+                              >
+                                {deploymentDetailsLoading
+                                  ? "Loading..."
+                                  : "View Details"}
+                              </button>
 
                               <button
                                 className="delete-button"
@@ -1808,6 +1839,181 @@ function App() {
               </div>
 
             </section>
+
+            {selectedDeployment && (
+              <section className="deployment-section">
+
+                <div className="section-heading">
+
+                  <div>
+                    <h2>
+                      Deployment Details #
+                      {selectedDeployment.id}
+                    </h2>
+
+                    <p>
+                      Complete deployment
+                      information and logs
+                    </p>
+                  </div>
+
+                  <button
+                    className="secondary-button"
+                    onClick={
+                      closeDeploymentDetails
+                    }
+                  >
+                    ✕ Close Details
+                  </button>
+
+                </div>
+
+                <div className="deployment-details-card">
+
+                  <div className="deployment-details-grid">
+
+                    <div className="detail-item">
+                      <span>
+                        Application
+                      </span>
+
+                      <strong>
+                        {
+                          selectedDeployment.application ||
+                          "—"
+                        }
+                      </strong>
+                    </div>
+
+                    <div className="detail-item">
+                      <span>
+                        Version
+                      </span>
+
+                      <code>
+                        {
+                          selectedDeployment.version ||
+                          "—"
+                        }
+                      </code>
+                    </div>
+
+                    <div className="detail-item">
+                      <span>
+                        Server
+                      </span>
+
+                      <strong>
+                        {
+                          selectedDeployment.server_name ||
+                          "—"
+                        }
+                      </strong>
+                    </div>
+
+                    <div className="detail-item">
+                      <span>
+                        EC2 Instance ID
+                      </span>
+
+                      <code>
+                        {
+                          selectedDeployment.ec2_instance_id ||
+                          "—"
+                        }
+                      </code>
+                    </div>
+
+                    <div className="detail-item">
+                      <span>
+                        Status
+                      </span>
+
+                      <span
+                        className={
+                          "status-badge " +
+                          (selectedDeployment.status ===
+                          "successful"
+                            ? "running"
+                            : selectedDeployment.status ===
+                                "failed"
+                              ? "stopped"
+                              : "")
+                        }
+                      >
+                        {
+                          selectedDeployment.status ||
+                          "unknown"
+                        }
+                      </span>
+                    </div>
+
+                    <div className="detail-item">
+                      <span>
+                        Created
+                      </span>
+
+                      <strong>
+                        {formatDate(
+                          selectedDeployment.created_at
+                        )}
+                      </strong>
+                    </div>
+
+                    <div className="detail-item">
+                      <span>
+                        Started
+                      </span>
+
+                      <strong>
+                        {formatDate(
+                          selectedDeployment.started_at
+                        )}
+                      </strong>
+                    </div>
+
+                    <div className="detail-item">
+                      <span>
+                        Completed
+                      </span>
+
+                      <strong>
+                        {formatDate(
+                          selectedDeployment.completed_at
+                        )}
+                      </strong>
+                    </div>
+
+                  </div>
+
+                  <div className="deployment-logs-section">
+
+                    <div className="logs-header">
+
+                      <div>
+                        <h3>
+                          Deployment Logs
+                        </h3>
+
+                        <p>
+                          Output captured from
+                          the deployment worker
+                        </p>
+                      </div>
+
+                    </div>
+
+                    <pre className="deployment-logs">
+                      {selectedDeployment.logs ||
+                        "No deployment logs available."}
+                    </pre>
+
+                  </div>
+
+                </div>
+
+              </section>
+            )}
 
           </>
         )}
