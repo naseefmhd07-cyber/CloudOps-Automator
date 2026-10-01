@@ -12,6 +12,7 @@ if [ -z "$DEPLOYMENT_ID" ]; then
     exit 1
 fi
 
+: > "$LOG_FILE"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 echo "========================================"
