@@ -4,10 +4,6 @@ from rest_framework import serializers
 from .models import Server, Deployment
 
 
-# =========================
-# SERVER SERIALIZER
-# =========================
-
 class ServerSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -22,9 +18,11 @@ class ServerSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-# =========================
-# DEPLOYMENT SERIALIZER
-# =========================
+        read_only_fields = [
+            "id",
+            "created_at",
+        ]
+
 
 class DeploymentSerializer(serializers.ModelSerializer):
 
@@ -38,57 +36,27 @@ class DeploymentSerializer(serializers.ModelSerializer):
             "application",
             "version",
             "status",
+            "started_at",
             "created_at",
             "completed_at",
+            "logs",
         ]
 
         read_only_fields = [
             "id",
             "status",
+            "started_at",
             "created_at",
             "completed_at",
-        ]
-# =========================
-# DEPLOYMENT SERIALIZER
-# =========================
-
-class DeploymentSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Deployment
-
-        fields = [
-            "id",
-            "ec2_instance_id",
-            "server_name",
-            "application",
-            "version",
-            "status",
-            "created_at",
-            "completed_at",
+            "logs",
         ]
 
-        read_only_fields = [
-            "id",
-            "status",
-            "created_at",
-            "completed_at",
-        ]
-
-
-# =========================
-# USER REGISTRATION
-# =========================
 
 class RegisterSerializer(serializers.ModelSerializer):
 
     password = serializers.CharField(
         write_only=True,
-        min_length=8
-    )
-
-    password2 = serializers.CharField(
-        write_only=True
+        min_length=6
     )
 
     class Meta:
@@ -96,28 +64,16 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         fields = [
             "username",
-            "email",
             "password",
-            "password2",
+            "email",
         ]
-
-    def validate(self, data):
-
-        if data["password"] != data["password2"]:
-            raise serializers.ValidationError({
-                "password": "Passwords do not match."
-            })
-
-        return data
 
     def create(self, validated_data):
 
-        validated_data.pop("password2")
-
         user = User.objects.create_user(
             username=validated_data["username"],
-            email=validated_data["email"],
-            password=validated_data["password"]
+            password=validated_data["password"],
+            email=validated_data.get("email", "")
         )
 
         return user

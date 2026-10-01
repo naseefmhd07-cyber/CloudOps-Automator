@@ -7,7 +7,10 @@ class Server(models.Model):
         ("stopped", "Stopped"),
     ]
 
-    name = models.CharField(max_length=100)
+    name = models.CharField(
+        max_length=100
+    )
+
     ip_address = models.GenericIPAddressField()
 
     status = models.CharField(
@@ -16,7 +19,9 @@ class Server(models.Model):
         default="stopped"
     )
 
-    server_type = models.CharField(max_length=100)
+    server_type = models.CharField(
+        max_length=100
+    )
 
     created_at = models.DateTimeField(
         auto_now_add=True
@@ -60,6 +65,11 @@ class Deployment(models.Model):
         default="pending"
     )
 
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True
     )
@@ -67,6 +77,11 @@ class Deployment(models.Model):
     completed_at = models.DateTimeField(
         null=True,
         blank=True
+    )
+
+    logs = models.TextField(
+        blank=True,
+        default=""
     )
 
     def __str__(self):
