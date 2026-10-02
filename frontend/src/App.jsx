@@ -1,130 +1,88 @@
 import { useEffect, useState } from "react";
-import "./index.css";
 
 const API_BASE = "/api";
 
 function App() {
-  const [token, setToken] = useState(
-    localStorage.getItem("access_token")
-  );
+  const [token, setToken] = useState(() => localStorage.getItem("access_token"));
+  const [page, setPage] = useState("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [page, setPage] = useState(
-    token ? "dashboard" : "login"
-  );
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem("cloudops-theme") === "dark";
+  });
 
   const [servers, setServers] = useState([]);
+  const [dashboard, setDashboard] = useState(null);
   const [deployments, setDeployments] = useState([]);
 
-  const [selectedDeployment, setSelectedDeployment] =
-    useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
+  const [searchServer, setSearchServer] = useState("");
+  const [searchDeployment, setSearchDeployment] = useState("");
+
+  const [deploymentForm, setDeploymentForm] = useState({
+    application: "",
+    version: "",
+    server_name: "",
+    ec2_instance_id: "",
+  });
+
+  const [selectedDeployment, setSelectedDeployment] = useState(null);
   const [deploymentDetailsLoading, setDeploymentDetailsLoading] =
     useState(false);
 
-  const [dashboard, setDashboard] = useState({
-    total_servers: 0,
-    running: 0,
-    stopped: 0,
-    successful_deployments: 0,
-    failed_deployments: 0,
-  });
-
-  const [search, setSearch] = useState("");
-  const [deploymentSearch, setDeploymentSearch] = useState("");
-
-  const [loading, setLoading] = useState(false);
-  const [deploymentLoading, setDeploymentLoading] = useState(false);
-
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const [loginData, setLoginData] = useState({
+  const [authMode, setAuthMode] = useState("login");
+  const [authForm, setAuthForm] = useState({
     username: "",
     password: "",
-  });
-
-  const [registerData, setRegisterData] = useState({
-    username: "",
     email: "",
-    password: "",
-    password2: "",
   });
 
-  const [deploymentData, setDeploymentData] = useState({
-    ec2_instance_id: "",
-    server_name: "",
-    application: "",
-    version: "",
-  });
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+    localStorage.setItem("cloudops-theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
 
-  function logout() {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+  useEffect(() => {
+    if (token) {
+      loadAllData();
+    }
+  }, [token]);
 
-    setToken(null);
-    setServers([]);
-    setDeployments([]);
-    setSelectedDeployment(null);
-    setPage("login");
-  }
+  async function apiFetch(endpoint, options = {}) {
+    const headers = {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    };
 
-  function clearMessages() {
-    setError("");
-    setSuccess("");
-  }
-
-  async function apiRequest(endpoint, options = {}) {
-    const currentToken =
-      localStorage.getItem("access_token");
-
-    const response = await fetch(
-      API_BASE + endpoint,
-      {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(currentToken
-            ? {
-                Authorization:
-                  "Bearer " + currentToken,
-              }
-            : {}),
-          ...(options.headers || {}),
-        },
-      }
-    );
-
-    if (response.status === 401) {
-      logout();
-      throw new Error(
-        "Session expired. Please login again."
-      );
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
 
-    const contentType =
-      response.headers.get("content-type") || "";
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-    let data = {};
-
-    if (contentType.includes("application/json")) {
-      data = await response.json();
-    } else {
-      data = await response.text();
-    }
+    const contentType = response.headers.get("content-type") || "";
+    const data = contentType.includes("application/json")
+      ? await response.json()
+      : await response.text();
 
     if (!response.ok) {
-      let message = "Request failed.";
-
-      if (data?.detail) {
-        message = data.detail;
-      } else if (data?.error) {
-        message = data.error;
-      } else if (
-        typeof data === "string" &&
-        data
-      ) {
-        message = data;
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        setToken(null);
       }
+
+      const message =
+        typeof data === "object"
+          ? data.detail ||
+            data.message ||
+            data.error ||
+            "Request failed."
+          : data || "Request failed.";
 
       throw new Error(message);
     }
@@ -132,1447 +90,998 @@ function App() {
     return data;
   }
 
-  async function loadServers() {
-    if (!localStorage.getItem("access_token")) {
-      return;
-    }
+  async function loadAllData() {
+    setLoading(true);
+    setError("");
 
     try {
-      setLoading(true);
-      setError("");
+      const [serverData, dashboardData, deploymentData] =
+        await Promise.all([
+          apiFetch("/servers/"),
+          apiFetch("/dashboard/"),
+          apiFetch("/deployments/"),
+        ]);
 
-      const data =
-        await apiRequest("/servers/");
-
-      setServers(data.servers || []);
+      setServers(Array.isArray(serverData) ? serverData : []);
+      setDashboard(dashboardData);
+      setDeployments(
+        Array.isArray(deploymentData) ? deploymentData : []
+      );
     } catch (err) {
       console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to load AWS EC2 instances."
-      );
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadDashboard() {
-    if (!localStorage.getItem("access_token")) {
-      return;
-    }
+  async function handleLogin(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
 
     try {
-      const data =
-        await apiRequest("/dashboard/");
+      const data = await fetch(`${API_BASE}/auth/login/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: authForm.username,
+          password: authForm.password,
+        }),
+      });
 
-      const serverData =
-        data.servers || {};
+      const result = await data.json();
 
-      const deploymentData =
-        data.deployments || {};
+      if (!data.ok) {
+        throw new Error(
+          result.detail ||
+            result.message ||
+            result.error ||
+            "Login failed."
+        );
+      }
 
-      setDashboard({
-        total_servers:
-          serverData.total || 0,
+      const accessToken = result.access || result.access_token;
 
-        running:
-          serverData.running || 0,
+      if (!accessToken) {
+        throw new Error("Login succeeded but no access token was returned.");
+      }
 
-        stopped:
-          serverData.stopped || 0,
-
-        successful_deployments:
-          deploymentData.successful || 0,
-
-        failed_deployments:
-          deploymentData.failed || 0,
+      localStorage.setItem("access_token", accessToken);
+      setToken(accessToken);
+      setAuthForm({
+        username: "",
+        password: "",
+        email: "",
       });
     } catch (err) {
       console.error(err);
-
-      if (
-        !err.message.includes(
-          "Session expired"
-        )
-      ) {
-        setError(
-          err.message ||
-            "Unable to load dashboard."
-        );
-      }
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
-  async function loadDeployments() {
-    if (!localStorage.getItem("access_token")) {
+  async function handleRegister(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/register/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: authForm.username,
+          password: authForm.password,
+          email: authForm.email,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            data.message ||
+            data.error ||
+            "Registration failed."
+        );
+      }
+
+      setAuthMode("login");
+      setError("Registration successful. Please log in.");
+      setAuthForm({
+        username: "",
+        password: "",
+        email: "",
+      });
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem("access_token");
+    setToken(null);
+    setServers([]);
+    setDashboard(null);
+    setDeployments([]);
+    setSelectedDeployment(null);
+    setPage("dashboard");
+  }
+
+  async function startServer(id) {
+    try {
+      setError("");
+
+      await apiFetch(`/servers/${id}/start/`, {
+        method: "POST",
+      });
+
+      await loadAllData();
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    }
+  }
+
+  async function stopServer(id) {
+    try {
+      setError("");
+
+      await apiFetch(`/servers/${id}/stop/`, {
+        method: "POST",
+      });
+
+      await loadAllData();
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    }
+  }
+
+  async function createDeployment(event) {
+    event.preventDefault();
+
+    if (!deploymentForm.application || !deploymentForm.version) {
+      setError("Application and version are required.");
       return;
     }
 
+    setLoading(true);
+    setError("");
+
     try {
-      setDeploymentLoading(true);
+      await apiFetch("/deployments/", {
+        method: "POST",
+        body: JSON.stringify(deploymentForm),
+      });
 
-      const data =
-        await apiRequest("/deployments/");
+      setDeploymentForm({
+        application: "",
+        version: "",
+        server_name: "",
+        ec2_instance_id: "",
+      });
 
-      setDeployments(
-        data.deployments || []
-      );
+      await loadAllData();
+      setPage("deployments");
     } catch (err) {
       console.error(err);
-
-      if (
-        !err.message.includes(
-          "Session expired"
-        )
-      ) {
-        setError(
-          err.message ||
-            "Unable to load deployments."
-        );
-      }
+      setError(err.message);
     } finally {
-      setDeploymentLoading(false);
+      setLoading(false);
+    }
+  }
+
+  async function deleteDeployment(id) {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this deployment?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setError("");
+
+      await apiFetch(`/deployments/${id}/`, {
+        method: "DELETE",
+      });
+
+      if (selectedDeployment?.id === id) {
+        setSelectedDeployment(null);
+      }
+
+      await loadAllData();
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
     }
   }
 
   async function viewDeploymentDetails(id) {
-    clearMessages();
+    setDeploymentDetailsLoading(true);
+    setError("");
 
     try {
-      setDeploymentDetailsLoading(true);
-
-      const data =
-        await apiRequest(
-          `/deployments/${id}/`
-        );
-
+      const data = await apiFetch(`/deployments/${id}/`);
       setSelectedDeployment(data);
     } catch (err) {
       console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to load deployment details."
-      );
+      setError(err.message);
     } finally {
       setDeploymentDetailsLoading(false);
     }
   }
 
-  function closeDeploymentDetails() {
-    setSelectedDeployment(null);
-  }
-
-  async function refreshData() {
-    clearMessages();
-
-    await Promise.all([
-      loadServers(),
-      loadDashboard(),
-      loadDeployments(),
-    ]);
-  }
-
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-
-    loadServers();
-    loadDashboard();
-    loadDeployments();
-  }, [token]);
-
-  async function handleLogin(e) {
-    e.preventDefault();
-
-    clearMessages();
-
-    if (
-      !loginData.username ||
-      !loginData.password
-    ) {
-      setError(
-        "Please enter username and password."
-      );
-
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const response = await fetch(
-        API_BASE + "/auth/login/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify(loginData),
-        }
-      );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.detail ||
-            "Invalid username or password."
-        );
-      }
-
-      localStorage.setItem(
-        "access_token",
-        data.access
-      );
-
-      localStorage.setItem(
-        "refresh_token",
-        data.refresh
-      );
-
-      setToken(data.access);
-
-      setLoginData({
-        username: "",
-        password: "",
-      });
-
-      setPage("dashboard");
-
-      setSuccess(
-        "Login successful."
-      );
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to login."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleRegister(e) {
-    e.preventDefault();
-
-    clearMessages();
-
-    if (
-      !registerData.username ||
-      !registerData.email ||
-      !registerData.password ||
-      !registerData.password2
-    ) {
-      setError(
-        "Please fill all registration fields."
-      );
-
-      return;
-    }
-
-    if (
-      registerData.password !==
-      registerData.password2
-    ) {
-      setError(
-        "Passwords do not match."
-      );
-
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const response = await fetch(
-        API_BASE + "/auth/register/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify(
-            registerData
-          ),
-        }
-      );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        let message =
-          "Registration failed.";
-
-        if (data.username) {
-          message =
-            data.username.join(" ");
-        } else if (data.email) {
-          message =
-            data.email.join(" ");
-        } else if (data.password) {
-          message =
-            data.password.join(" ");
-        }
-
-        throw new Error(message);
-      }
-
-      setRegisterData({
-        username: "",
-        email: "",
-        password: "",
-        password2: "",
-      });
-
-      setPage("login");
-
-      setSuccess(
-        "Registration successful. Please login."
-      );
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to register."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function startServer(instanceId) {
-    clearMessages();
-
-    try {
-      await apiRequest(
-        `/servers/${instanceId}/start/`,
-        {
-          method: "POST",
-        }
-      );
-
-      setSuccess(
-        "EC2 start request sent successfully."
-      );
-
-      setTimeout(() => {
-        loadServers();
-        loadDashboard();
-      }, 2000);
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to start EC2 instance."
-      );
-    }
-  }
-
-  async function stopServer(instanceId) {
-    clearMessages();
-
-    try {
-      await apiRequest(
-        `/servers/${instanceId}/stop/`,
-        {
-          method: "POST",
-        }
-      );
-
-      setSuccess(
-        "EC2 stop request sent successfully."
-      );
-
-      setTimeout(() => {
-        loadServers();
-        loadDashboard();
-      }, 2000);
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to stop EC2 instance."
-      );
-    }
-  }
-
-  async function createDeployment(e) {
-    e.preventDefault();
-
-    clearMessages();
-
-    if (
-      !deploymentData.ec2_instance_id ||
-      !deploymentData.server_name ||
-      !deploymentData.application ||
-      !deploymentData.version
-    ) {
-      setError(
-        "Please fill all deployment fields."
-      );
-
-      return;
-    }
-
-    try {
-      setDeploymentLoading(true);
-
-      const data =
-        await apiRequest(
-          "/deployments/",
-          {
-            method: "POST",
-            body: JSON.stringify(
-              deploymentData
-            ),
-          }
-        );
-
-      setSuccess(
-        data.message ||
-          "Deployment created successfully."
-      );
-
-      setDeploymentData({
-        ec2_instance_id: "",
-        server_name: "",
-        application: "",
-        version: "",
-      });
-
-      await loadDeployments();
-      await loadDashboard();
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Deployment failed."
-      );
-    } finally {
-      setDeploymentLoading(false);
-    }
-  }
-
-  async function deleteDeployment(id) {
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to delete this deployment?"
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    clearMessages();
-
-    try {
-      await apiRequest(
-        `/deployments/${id}/`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      if (
-        selectedDeployment?.id === id
-      ) {
-        setSelectedDeployment(null);
-      }
-
-      setSuccess(
-        "Deployment deleted successfully."
-      );
-
-      await loadDeployments();
-      await loadDashboard();
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to delete deployment."
-      );
-    }
-  }
-
   function formatDate(value) {
-    if (!value) {
-      return "—";
-    }
+    if (!value) return "—";
 
-    return new Date(
-      value
-    ).toLocaleString();
+    try {
+      return new Date(value).toLocaleString();
+    } catch {
+      return value;
+    }
   }
 
-  const filteredServers =
-    servers.filter((server) => {
-      const query =
-        search.toLowerCase();
+  function getStatusClass(status) {
+    switch (String(status || "").toLowerCase()) {
+      case "running":
+        return "status-running";
+      case "successful":
+      case "running-success":
+        return "status-success";
+      case "failed":
+        return "status-failed";
+      case "stopped":
+        return "status-stopped";
+      case "pending":
+        return "status-pending";
+      default:
+        return "status-default";
+    }
+  }
 
-      return (
-        String(
-          server.name || ""
-        )
-          .toLowerCase()
-          .includes(query) ||
-        String(
-          server.id || ""
-        )
-          .toLowerCase()
-          .includes(query) ||
-        String(
-          server.public_ip || ""
-        )
-          .toLowerCase()
-          .includes(query) ||
-        String(
-          server.private_ip || ""
-        )
-          .toLowerCase()
-          .includes(query) ||
-        String(
-          server.server_type || ""
-        )
-          .toLowerCase()
-          .includes(query)
-      );
-    });
+  function getServerStatus(server) {
+    return String(server.status || "").toLowerCase();
+  }
 
-  const filteredDeployments =
-    deployments.filter(
-      (deployment) => {
-        const query =
-          deploymentSearch.toLowerCase();
+  const filteredServers = servers.filter((server) => {
+    const search = searchServer.toLowerCase();
 
-        return (
-          String(
-            deployment.application || ""
-          )
-            .toLowerCase()
-            .includes(query) ||
-          String(
-            deployment.version || ""
-          )
-            .toLowerCase()
-            .includes(query) ||
-          String(
-            deployment.server_name || ""
-          )
-            .toLowerCase()
-            .includes(query) ||
-          String(
-            deployment.ec2_instance_id || ""
-          )
-            .toLowerCase()
-            .includes(query) ||
-          String(
-            deployment.status || ""
-          )
-            .toLowerCase()
-            .includes(query)
-        );
-      }
+    return (
+      String(server.name || "").toLowerCase().includes(search) ||
+      String(server.ip_address || "").toLowerCase().includes(search) ||
+      String(server.server_type || "").toLowerCase().includes(search) ||
+      String(server.status || "").toLowerCase().includes(search)
     );
+  });
 
-  const runningCount =
+  const filteredDeployments = deployments.filter((deployment) => {
+    const search = searchDeployment.toLowerCase();
+
+    return (
+      String(deployment.application || "")
+        .toLowerCase()
+        .includes(search) ||
+      String(deployment.version || "")
+        .toLowerCase()
+        .includes(search) ||
+      String(deployment.server_name || "")
+        .toLowerCase()
+        .includes(search) ||
+      String(deployment.status || "")
+        .toLowerCase()
+        .includes(search)
+    );
+  });
+
+  const totalServers =
+    dashboard?.total_servers ??
+    dashboard?.servers?.total ??
+    servers.length;
+
+  const runningServers =
+    dashboard?.running_servers ??
+    dashboard?.servers?.running ??
     servers.filter(
-      (server) =>
-        server.status === "running"
+      (server) => getServerStatus(server) === "running"
     ).length;
 
-  const stoppedCount =
+  const stoppedServers =
+    dashboard?.stopped_servers ??
+    dashboard?.servers?.stopped ??
     servers.filter(
-      (server) =>
-        server.status === "stopped"
+      (server) => getServerStatus(server) === "stopped"
     ).length;
-
-  const successful =
-    dashboard.successful_deployments || 0;
-
-  const failed =
-    dashboard.failed_deployments || 0;
 
   const totalDeployments =
-    deployments.length ||
-    successful + failed;
+    dashboard?.total_deployments ?? deployments.length;
 
-  if (!token && page === "login") {
+  const successfulDeployments =
+    dashboard?.successful_deployments ??
+    deployments.filter(
+      (deployment) => deployment.status === "successful"
+    ).length;
+
+  const failedDeployments =
+    dashboard?.failed_deployments ??
+    deployments.filter(
+      (deployment) => deployment.status === "failed"
+    ).length;
+
+  if (!token) {
     return (
       <div className="auth-page">
-        <div className="auth-card">
-
-          <div className="auth-header">
-            <div className="auth-logo">
-              ☁️
+        <div className="auth-container">
+          <div className="auth-brand">
+            <div className="brand-mark">☁</div>
+            <div>
+              <h1>CloudOps Automator</h1>
+              <p>AWS & DevOps Management Platform</p>
             </div>
-
-            <h1>
-              CloudOps Automator
-            </h1>
-
-            <p className="auth-subtitle">
-              AWS & DevOps Management
-              Platform
-            </p>
           </div>
 
-          {error && (
-            <div className="error-message">
-              {error}
-            </div>
-          )}
+          <div className="auth-card">
+            <div className="auth-card-header">
+              <h2>
+                {authMode === "login"
+                  ? "Welcome back"
+                  : "Create your account"}
+              </h2>
 
-          {success && (
-            <div className="success-message">
-              {success}
+              <p>
+                {authMode === "login"
+                  ? "Sign in to manage your cloud infrastructure."
+                  : "Create an account to access CloudOps Automator."}
+              </p>
             </div>
-          )}
 
-          <div className="auth-tabs">
-            <button
-              className="active"
-              type="button"
+            {error && (
+              <div className="alert-message">
+                {error}
+              </div>
+            )}
+
+            <form
+              onSubmit={
+                authMode === "login"
+                  ? handleLogin
+                  : handleRegister
+              }
+              className="auth-form"
             >
-              Login
-            </button>
+              <label>
+                Username
+                <input
+                  type="text"
+                  value={authForm.username}
+                  onChange={(event) =>
+                    setAuthForm({
+                      ...authForm,
+                      username: event.target.value,
+                    })
+                  }
+                  placeholder="Enter username"
+                  required
+                />
+              </label>
+
+              {authMode === "register" && (
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    value={authForm.email}
+                    onChange={(event) =>
+                      setAuthForm({
+                        ...authForm,
+                        email: event.target.value,
+                      })
+                    }
+                    placeholder="Enter email"
+                    required
+                  />
+                </label>
+              )}
+
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={authForm.password}
+                  onChange={(event) =>
+                    setAuthForm({
+                      ...authForm,
+                      password: event.target.value,
+                    })
+                  }
+                  placeholder="Enter password"
+                  required
+                />
+              </label>
+
+              <button
+                className="primary-button auth-submit"
+                type="submit"
+                disabled={loading}
+              >
+                {loading
+                  ? "Please wait..."
+                  : authMode === "login"
+                  ? "Sign In"
+                  : "Create Account"}
+              </button>
+            </form>
 
             <button
-              type="button"
-              onClick={() => {
-                clearMessages();
-                setPage("register");
-              }}
-            >
-              Register
-            </button>
-          </div>
-
-          <form
-            onSubmit={handleLogin}
-            className="auth-form"
-          >
-            <label>
-              Username
-
-              <input
-                type="text"
-                value={
-                  loginData.username
-                }
-                onChange={(e) =>
-                  setLoginData({
-                    ...loginData,
-                    username:
-                      e.target.value,
-                  })
-                }
-                placeholder="Enter username"
-              />
-            </label>
-
-            <label>
-              Password
-
-              <input
-                type="password"
-                value={
-                  loginData.password
-                }
-                onChange={(e) =>
-                  setLoginData({
-                    ...loginData,
-                    password:
-                      e.target.value,
-                  })
-                }
-                placeholder="Enter password"
-              />
-            </label>
-
-            <button
-              className="primary-button"
-              type="submit"
-              disabled={loading}
-            >
-              {loading
-                ? "Signing in..."
-                : "Login"}
-            </button>
-          </form>
-
-        </div>
-      </div>
-    );
-  }
-
-  if (
-    !token &&
-    page === "register"
-  ) {
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-
-          <div className="auth-header">
-            <div className="auth-logo">
-              ☁️
-            </div>
-
-            <h1>
-              Create Account
-            </h1>
-
-            <p className="auth-subtitle">
-              CloudOps Automator
-            </p>
-          </div>
-
-          {error && (
-            <div className="error-message">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="success-message">
-              {success}
-            </div>
-          )}
-
-          <div className="auth-tabs">
-            <button
+              className="auth-switch"
               type="button"
               onClick={() => {
-                clearMessages();
-                setPage("login");
+                setError("");
+                setAuthMode(
+                  authMode === "login" ? "register" : "login"
+                );
               }}
             >
-              Login
-            </button>
-
-            <button
-              className="active"
-              type="button"
-            >
-              Register
+              {authMode === "login"
+                ? "Don't have an account? Create one"
+                : "Already have an account? Sign in"}
             </button>
           </div>
-
-          <form
-            onSubmit={handleRegister}
-            className="auth-form"
-          >
-            <label>
-              Username
-
-              <input
-                type="text"
-                value={
-                  registerData.username
-                }
-                onChange={(e) =>
-                  setRegisterData({
-                    ...registerData,
-                    username:
-                      e.target.value,
-                  })
-                }
-                placeholder="Choose username"
-              />
-            </label>
-
-            <label>
-              Email
-
-              <input
-                type="email"
-                value={
-                  registerData.email
-                }
-                onChange={(e) =>
-                  setRegisterData({
-                    ...registerData,
-                    email:
-                      e.target.value,
-                  })
-                }
-                placeholder="Enter email"
-              />
-            </label>
-
-            <label>
-              Password
-
-              <input
-                type="password"
-                value={
-                  registerData.password
-                }
-                onChange={(e) =>
-                  setRegisterData({
-                    ...registerData,
-                    password:
-                      e.target.value,
-                  })
-                }
-                placeholder="Minimum 8 characters"
-              />
-            </label>
-
-            <label>
-              Confirm Password
-
-              <input
-                type="password"
-                value={
-                  registerData.password2
-                }
-                onChange={(e) =>
-                  setRegisterData({
-                    ...registerData,
-                    password2:
-                      e.target.value,
-                  })
-                }
-                placeholder="Confirm password"
-              />
-            </label>
-
-            <button
-              className="primary-button"
-              type="submit"
-              disabled={loading}
-            >
-              {loading
-                ? "Creating..."
-                : "Create Account"}
-            </button>
-          </form>
-
         </div>
       </div>
     );
   }
 
   return (
-    <div className="app">
+    <div className="app-shell">
+      {mobileMenuOpen && (
+        <div
+          className="mobile-overlay"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
 
-      <header className="top-header">
+      <aside
+        className={`sidebar ${
+          mobileMenuOpen ? "sidebar-open" : ""
+        }`}
+      >
+        <div className="sidebar-brand">
+          <div className="brand-mark small">☁</div>
 
-        <div>
-          <h1>
-            CloudOps Automator
-          </h1>
-
-          <p>
-            AWS & DevOps Management
-            Platform
-          </p>
+          <div>
+            <strong>CloudOps</strong>
+            <span>Automator</span>
+          </div>
         </div>
 
-        <div className="header-actions">
-
+        <nav className="sidebar-nav">
           <button
             className={
               page === "dashboard"
-                ? "primary-button"
-                : "secondary-button"
+                ? "nav-item active"
+                : "nav-item"
             }
             onClick={() => {
-              clearMessages();
-              setSelectedDeployment(null);
               setPage("dashboard");
+              setMobileMenuOpen(false);
             }}
           >
+            <span>▦</span>
             Dashboard
           </button>
 
           <button
             className={
-              page === "deployments"
-                ? "primary-button"
-                : "secondary-button"
+              page === "servers"
+                ? "nav-item active"
+                : "nav-item"
             }
             onClick={() => {
-              clearMessages();
-              setSelectedDeployment(null);
-              setPage("deployments");
-              loadDeployments();
+              setPage("servers");
+              setMobileMenuOpen(false);
             }}
           >
+            <span>▣</span>
+            EC2 Instances
+          </button>
+
+          <button
+            className={
+              page === "deployments"
+                ? "nav-item active"
+                : "nav-item"
+            }
+            onClick={() => {
+              setPage("deployments");
+              setMobileMenuOpen(false);
+            }}
+          >
+            <span>⇄</span>
             Deployments
           </button>
+        </nav>
+
+        <div className="sidebar-bottom">
+          <button
+            className="theme-toggle"
+            onClick={() => setDarkMode((prev) => !prev)}
+            type="button"
+          >
+            <span>{darkMode ? "☀️" : "🌙"}</span>
+            <span>
+              {darkMode ? "Light Mode" : "Dark Mode"}
+            </span>
+          </button>
+
+          <div className="connection-status">
+            <span className="online-dot" />
+            <div>
+              <strong>AWS Connected</strong>
+              <small>Infrastructure online</small>
+            </div>
+          </div>
 
           <button
             className="logout-button"
             onClick={logout}
+            type="button"
           >
+            <span>↪</span>
             Logout
           </button>
-
         </div>
+      </aside>
 
-      </header>
+      <main className="main-content">
+        <header className="topbar">
+          <div className="topbar-left">
+            <button
+              className="mobile-menu-button"
+              onClick={() =>
+                setMobileMenuOpen((prev) => !prev)
+              }
+              type="button"
+            >
+              ☰
+            </button>
 
-      <main className="container">
+            <div>
+              <div className="breadcrumb">
+                CloudOps Automator /{" "}
+                <strong>
+                  {page === "dashboard"
+                    ? "Dashboard"
+                    : page === "servers"
+                    ? "EC2 Instances"
+                    : "Deployments"}
+                </strong>
+              </div>
 
-        {error && (
-          <div className="error-message">
-            {error}
+              <h1>
+                {page === "dashboard"
+                  ? "Infrastructure Overview"
+                  : page === "servers"
+                  ? "EC2 Instances"
+                  : "Deployment Center"}
+              </h1>
+            </div>
           </div>
-        )}
 
-        {success && (
-          <div className="success-message">
-            {success}
+          <div className="topbar-actions">
+            <button
+              className="icon-button"
+              onClick={() => setDarkMode((prev) => !prev)}
+              title={
+                darkMode
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+              }
+              type="button"
+            >
+              {darkMode ? "☀" : "☾"}
+            </button>
+
+            <button
+              className="refresh-button"
+              onClick={loadAllData}
+              disabled={loading}
+              type="button"
+            >
+              ↻ <span>Refresh</span>
+            </button>
           </div>
-        )}
+        </header>
 
-        {page === "dashboard" && (
-          <>
+        <div className="content-area">
+          {error && (
+            <div className="global-alert">
+              <span>⚠</span>
+              <span>{error}</span>
 
-            <section className="dashboard-section">
+              <button
+                onClick={() => setError("")}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
-              <div className="section-heading">
-
+          {page === "dashboard" && (
+            <>
+              <section className="welcome-row">
                 <div>
-                  <h2>
-                    Dashboard
-                  </h2>
-
+                  <p className="eyebrow">CLOUD OPERATIONS</p>
+                  <h2>Good to see you.</h2>
                   <p>
-                    Monitor your AWS
-                    infrastructure
+                    Monitor your AWS infrastructure and manage
+                    deployments from one place.
                   </p>
                 </div>
 
                 <button
-                  className="secondary-button"
-                  onClick={refreshData}
-                  disabled={loading}
+                  className="primary-button"
+                  onClick={() => setPage("deployments")}
                 >
-                  {loading
-                    ? "Refreshing..."
-                    : "↻ Refresh"}
+                  + New Deployment
                 </button>
+              </section>
 
-              </div>
-
-              <div className="stats-grid">
-
+              <section className="stats-grid">
                 <div className="stat-card">
-                  <div className="stat-icon">
-                    ☁️
+                  <div className="stat-card-top">
+                    <span>Total Servers</span>
+                    <span className="stat-icon blue">▣</span>
                   </div>
 
-                  <div>
-                    <h3>
-                      Total Servers
-                    </h3>
-
-                    <strong>
-                      {dashboard.total_servers ||
-                        servers.length}
-                    </strong>
-                  </div>
+                  <strong>{totalServers}</strong>
+                  <small>EC2 infrastructure</small>
                 </div>
 
                 <div className="stat-card">
-                  <div className="stat-icon">
-                    ✓
+                  <div className="stat-card-top">
+                    <span>Running</span>
+                    <span className="stat-icon green">●</span>
                   </div>
 
-                  <div>
-                    <h3>
-                      Running
-                    </h3>
-
-                    <strong>
-                      {dashboard.running ||
-                        runningCount}
-                    </strong>
-                  </div>
+                  <strong>{runningServers}</strong>
+                  <small>Currently active</small>
                 </div>
 
                 <div className="stat-card">
-                  <div className="stat-icon">
-                    ⏸
+                  <div className="stat-card-top">
+                    <span>Stopped</span>
+                    <span className="stat-icon orange">■</span>
                   </div>
 
-                  <div>
-                    <h3>
-                      Stopped
-                    </h3>
-
-                    <strong>
-                      {dashboard.stopped ??
-                        stoppedCount}
-                    </strong>
-                  </div>
+                  <strong>{stoppedServers}</strong>
+                  <small>Currently stopped</small>
                 </div>
 
                 <div className="stat-card">
-                  <div className="stat-icon">
-                    🚀
+                  <div className="stat-card-top">
+                    <span>Deployments</span>
+                    <span className="stat-icon purple">⇄</span>
                   </div>
 
-                  <div>
-                    <h3>
-                      Deployments
-                    </h3>
+                  <strong>{totalDeployments}</strong>
+                  <small>All deployments</small>
+                </div>
+              </section>
 
-                    <strong>
-                      {totalDeployments}
-                    </strong>
+              <section className="dashboard-grid">
+                <div className="panel large-panel">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">COMPUTE</p>
+                      <h3>EC2 Instances</h3>
+                    </div>
+
+                    <button
+                      className="text-button"
+                      onClick={() => setPage("servers")}
+                    >
+                      View all →
+                    </button>
+                  </div>
+
+                  <div className="instance-list">
+                    {servers.length === 0 ? (
+                      <div className="empty-state">
+                        No EC2 instances found.
+                      </div>
+                    ) : (
+                      servers.slice(0, 5).map((server) => (
+                        <div
+                          className="instance-row"
+                          key={server.id}
+                        >
+                          <div className="instance-main">
+                            <div className="instance-icon">
+                              EC2
+                            </div>
+
+                            <div>
+                              <strong>{server.name}</strong>
+                              <small>
+                                {server.server_type ||
+                                  "EC2 Instance"}
+                              </small>
+                            </div>
+                          </div>
+
+                          <div className="instance-meta">
+                            <span
+                              className={`status-badge ${getStatusClass(
+                                server.status
+                              )}`}
+                            >
+                              <span />
+                              {server.status}
+                            </span>
+
+                            <span className="instance-ip">
+                              {server.ip_address || "No public IP"}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
-              </div>
+                <div className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">CI/CD</p>
+                      <h3>Deployment Overview</h3>
+                    </div>
+                  </div>
 
-            </section>
+                  <div className="deployment-summary">
+                    <div>
+                      <span>Successful</span>
+                      <strong className="success-text">
+                        {successfulDeployments}
+                      </strong>
+                    </div>
 
-            <section className="servers-section">
+                    <div>
+                      <span>Failed</span>
+                      <strong className="failed-text">
+                        {failedDeployments}
+                      </strong>
+                    </div>
 
-              <div className="section-heading">
+                    <div>
+                      <span>Total</span>
+                      <strong>{totalDeployments}</strong>
+                    </div>
+                  </div>
 
+                  <button
+                    className="secondary-button full-width"
+                    onClick={() => setPage("deployments")}
+                  >
+                    Open Deployment Center
+                  </button>
+                </div>
+              </section>
+            </>
+          )}
+
+          {page === "servers" && (
+            <>
+              <section className="page-heading-row">
                 <div>
-                  <h2>
-                    AWS EC2 Instances
-                  </h2>
-
+                  <p className="eyebrow">AWS COMPUTE</p>
+                  <h2>EC2 Instances</h2>
                   <p>
-                    Live instances from
-                    your AWS account
+                    View and control your connected AWS
+                    instances.
                   </p>
                 </div>
+              </section>
 
-                <input
-                  className="search-input"
-                  type="text"
-                  placeholder="Search servers..."
-                  value={search}
-                  onChange={(e) =>
-                    setSearch(
-                      e.target.value
-                    )
-                  }
-                />
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h3>Instances</h3>
+                    <span className="panel-count">
+                      {filteredServers.length} instances
+                    </span>
+                  </div>
 
-              </div>
+                  <div className="search-box">
+                    <span>⌕</span>
 
-              <div className="table-container">
+                    <input
+                      value={searchServer}
+                      onChange={(event) =>
+                        setSearchServer(event.target.value)
+                      }
+                      placeholder="Search instances..."
+                    />
+                  </div>
+                </div>
 
-                <table>
-
-                  <thead>
-                    <tr>
-                      <th>Instance</th>
-                      <th>State</th>
-                      <th>Type</th>
-                      <th>Public IP</th>
-                      <th>Private IP</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-
-                    {filteredServers.length ===
-                      0 && (
+                <div className="responsive-table">
+                  <table>
+                    <thead>
                       <tr>
-                        <td
-                          colSpan="6"
-                          className="empty-state"
-                        >
-                          {loading
-                            ? "Loading EC2 instances..."
-                            : "No EC2 instances found."}
-                        </td>
+                        <th>Instance</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>IP Address</th>
+                        <th>Server Type</th>
+                        <th>Action</th>
                       </tr>
-                    )}
+                    </thead>
 
-                    {filteredServers.map(
-                      (server) => (
-                        <tr
-                          key={
-                            server.id
-                          }
-                        >
-
-                          <td>
-                            <strong>
-                              {server.name ||
-                                "Unnamed"}
-                            </strong>
-
-                            <small>
-                              {server.id}
-                            </small>
+                    <tbody>
+                      {filteredServers.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan="6"
+                            className="table-empty"
+                          >
+                            No instances found.
                           </td>
+                        </tr>
+                      ) : (
+                        filteredServers.map((server) => (
+                          <tr key={server.id}>
+                            <td>
+                              <div className="table-instance">
+                                <div className="instance-icon">
+                                  EC2
+                                </div>
 
-                          <td>
-                            <span
-                              className={
-                                server.status ===
-                                "running"
-                                  ? "status-badge running"
-                                  : "status-badge stopped"
-                              }
-                            >
-                              {server.status ||
-                                "unknown"}
-                            </span>
-                          </td>
+                                <div>
+                                  <strong>
+                                    {server.name}
+                                  </strong>
+                                  <small>
+                                    ID #{server.id}
+                                  </small>
+                                </div>
+                              </div>
+                            </td>
 
-                          <td>
-                            <span className="instance-type">
-                              {server.server_type ||
-                                "Unknown"}
-                            </span>
-                          </td>
+                            <td>
+                              {server.instance_type ||
+                                server.type ||
+                                "—"}
+                            </td>
 
-                          <td>
-                            <code>
-                              {server.public_ip ||
-                                "No Public IP"}
-                            </code>
-                          </td>
+                            <td>
+                              <span
+                                className={`status-badge ${getStatusClass(
+                                  server.status
+                                )}`}
+                              >
+                                <span />
+                                {server.status}
+                              </span>
+                            </td>
 
-                          <td>
-                            <code>
-                              {server.private_ip ||
-                                "No Private IP"}
-                            </code>
-                          </td>
+                            <td>
+                              {server.ip_address || "—"}
+                            </td>
 
-                          <td>
-                            <div className="action-buttons">
+                            <td>
+                              {server.server_type || "—"}
+                            </td>
 
-                              {server.status ===
-                                "running" ? (
+                            <td>
+                              {getServerStatus(server) ===
+                              "running" ? (
                                 <button
-                                  className="delete-button"
+                                  className="danger-outline-button"
                                   onClick={() =>
-                                    stopServer(
-                                      server.id
-                                    )
+                                    stopServer(server.id)
                                   }
                                 >
                                   Stop
                                 </button>
                               ) : (
                                 <button
-                                  className="edit-button"
+                                  className="success-outline-button"
                                   onClick={() =>
-                                    startServer(
-                                      server.id
-                                    )
+                                    startServer(server.id)
                                   }
                                 >
                                   Start
                                 </button>
                               )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </>
+          )}
 
-                            </div>
-                          </td>
-
-                        </tr>
-                      )
-                    )}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-
-            </section>
-
-            <section className="deployment-section">
-
-              <div className="section-heading">
-
+          {page === "deployments" && (
+            <>
+              <section className="page-heading-row">
                 <div>
-                  <h2>
-                    Deployment Overview
-                  </h2>
-
+                  <p className="eyebrow">CI/CD PIPELINE</p>
+                  <h2>Deployment Center</h2>
                   <p>
-                    CI/CD deployment
-                    statistics
+                    Create, monitor and inspect your application
+                    deployments.
                   </p>
                 </div>
+              </section>
 
-                <button
-                  className="primary-button"
-                  onClick={() => {
-                    clearMessages();
-                    setPage(
-                      "deployments"
-                    );
-                    loadDeployments();
-                  }}
-                >
-                  Manage Deployments
-                </button>
-
-              </div>
-
-              <div className="deployment-grid">
-
-                <div className="deployment-card success">
-                  <div className="deployment-icon">
-                    ✓
+              <section className="deployment-layout">
+                <div className="panel deployment-create-panel">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">NEW RELEASE</p>
+                      <h3>Create Deployment</h3>
+                    </div>
                   </div>
 
-                  <div>
-                    <span>
-                      Successful
-                    </span>
-
-                    <strong>
-                      {successful}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="deployment-card failed">
-                  <div className="deployment-icon">
-                    !
-                  </div>
-
-                  <div>
-                    <span>
-                      Failed
-                    </span>
-
-                    <strong>
-                      {failed}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="deployment-card total">
-                  <div className="deployment-icon">
-                    #
-                  </div>
-
-                  <div>
-                    <span>
-                      Total
-                    </span>
-
-                    <strong>
-                      {totalDeployments}
-                    </strong>
-                  </div>
-                </div>
-
-              </div>
-
-            </section>
-
-          </>
-        )}
-
-        {page === "deployments" && (
-          <>
-
-            <section className="deployment-section">
-
-              <div className="section-heading">
-
-                <div>
-                  <h2>
-                    Deployments
-                  </h2>
-
-                  <p>
-                    Create and monitor
-                    application deployments
-                  </p>
-                </div>
-
-                <div className="header-actions">
-
-                  <button
-                    className="secondary-button"
-                    onClick={loadDeployments}
-                    disabled={
-                      deploymentLoading
-                    }
+                  <form
+                    className="deployment-form"
+                    onSubmit={createDeployment}
                   >
-                    {deploymentLoading
-                      ? "Refreshing..."
-                      : "↻ Refresh"}
-                  </button>
-
-                  <button
-                    className="primary-button"
-                    onClick={() => {
-                      document
-                        .getElementById(
-                          "deployment-form"
-                        )
-                        ?.scrollIntoView({
-                          behavior:
-                            "smooth",
-                        });
-                    }}
-                  >
-                    + New Deployment
-                  </button>
-
-                </div>
-
-              </div>
-
-              <div className="stats-grid">
-
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    🚀
-                  </div>
-
-                  <div>
-                    <h3>Total</h3>
-
-                    <strong>
-                      {totalDeployments}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    ✓
-                  </div>
-
-                  <div>
-                    <h3>Successful</h3>
-
-                    <strong>
-                      {successful}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    !
-                  </div>
-
-                  <div>
-                    <h3>Failed</h3>
-
-                    <strong>
-                      {failed}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    ⏱
-                  </div>
-
-                  <div>
-                    <h3>Pending</h3>
-
-                    <strong>
-                      {
-                        deployments.filter(
-                          (item) =>
-                            item.status ===
-                              "pending" ||
-                            item.status ===
-                              "running"
-                        ).length
-                      }
-                    </strong>
-                  </div>
-                </div>
-
-              </div>
-
-            </section>
-
-            <section
-              id="deployment-form"
-              className="deployment-section"
-            >
-
-              <div className="section-heading">
-
-                <div>
-                  <h2>
-                    Create Deployment
-                  </h2>
-
-                  <p>
-                    Start a deployment
-                    process
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="form-card">
-
-                <form
-                  onSubmit={
-                    createDeployment
-                  }
-                >
-
-                  <div className="form-grid">
-
                     <label>
-                      EC2 Instance ID
-
+                      Application
                       <input
-                        type="text"
-                        value={
-                          deploymentData.ec2_instance_id
-                        }
-                        onChange={(e) =>
-                          setDeploymentData({
-                            ...deploymentData,
-                            ec2_instance_id:
-                              e.target.value,
+                        value={deploymentForm.application}
+                        onChange={(event) =>
+                          setDeploymentForm({
+                            ...deploymentForm,
+                            application:
+                              event.target.value,
                           })
                         }
-                        placeholder="i-xxxxxxxxxxxxxxxxx"
+                        placeholder="CloudOps Automator"
+                        required
+                      />
+                    </label>
+
+                    <label>
+                      Version
+                      <input
+                        value={deploymentForm.version}
+                        onChange={(event) =>
+                          setDeploymentForm({
+                            ...deploymentForm,
+                            version: event.target.value,
+                          })
+                        }
+                        placeholder="v1.0.0"
+                        required
                       />
                     </label>
 
                     <label>
                       Server Name
-
                       <input
-                        type="text"
-                        value={
-                          deploymentData.server_name
-                        }
-                        onChange={(e) =>
-                          setDeploymentData({
-                            ...deploymentData,
+                        value={deploymentForm.server_name}
+                        onChange={(event) =>
+                          setDeploymentForm({
+                            ...deploymentForm,
                             server_name:
-                              e.target.value,
+                              event.target.value,
                           })
                         }
                         placeholder="Production Server"
@@ -1580,459 +1089,276 @@ function App() {
                     </label>
 
                     <label>
-                      Application
-
+                      EC2 Instance ID
                       <input
-                        type="text"
-                        value={
-                          deploymentData.application
-                        }
-                        onChange={(e) =>
-                          setDeploymentData({
-                            ...deploymentData,
-                            application:
-                              e.target.value,
+                        value={deploymentForm.ec2_instance_id}
+                        onChange={(event) =>
+                          setDeploymentForm({
+                            ...deploymentForm,
+                            ec2_instance_id:
+                              event.target.value,
                           })
                         }
-                        placeholder="CloudOps Automator"
+                        placeholder="i-0123456789abcdef"
                       />
                     </label>
 
-                    <label>
-                      Version
+                    <button
+                      className="primary-button full-width"
+                      type="submit"
+                      disabled={loading}
+                    >
+                      {loading
+                        ? "Starting Deployment..."
+                        : "Start Deployment →"}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">ACTIVITY</p>
+                      <h3>Deployment History</h3>
+                    </div>
+
+                    <div className="search-box">
+                      <span>⌕</span>
 
                       <input
-                        type="text"
-                        value={
-                          deploymentData.version
+                        value={searchDeployment}
+                        onChange={(event) =>
+                          setSearchDeployment(
+                            event.target.value
+                          )
                         }
-                        onChange={(e) =>
-                          setDeploymentData({
-                            ...deploymentData,
-                            version:
-                              e.target.value,
-                          })
-                        }
-                        placeholder="v1.0.0"
+                        placeholder="Search..."
                       />
-                    </label>
-
+                    </div>
                   </div>
 
-                  <div className="form-actions">
+                  <div className="responsive-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Application</th>
+                          <th>Version</th>
+                          <th>Server</th>
+                          <th>Status</th>
+                          <th>Created</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {filteredDeployments.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan="7"
+                              className="table-empty"
+                            >
+                              No deployments found.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredDeployments.map(
+                            (deployment) => (
+                              <tr key={deployment.id}>
+                                <td>
+                                  #{deployment.id}
+                                </td>
+
+                                <td>
+                                  <strong>
+                                    {deployment.application}
+                                  </strong>
+                                </td>
+
+                                <td>
+                                  {deployment.version}
+                                </td>
+
+                                <td>
+                                  {deployment.server_name ||
+                                    "—"}
+                                </td>
+
+                                <td>
+                                  <span
+                                    className={`status-badge ${getStatusClass(
+                                      deployment.status
+                                    )}`}
+                                  >
+                                    <span />
+                                    {deployment.status}
+                                  </span>
+                                </td>
+
+                                <td>
+                                  {formatDate(
+                                    deployment.created_at
+                                  )}
+                                </td>
+
+                                <td>
+                                  <div className="table-actions">
+                                    <button
+                                      className="details-button"
+                                      onClick={() =>
+                                        viewDeploymentDetails(
+                                          deployment.id
+                                        )
+                                      }
+                                    >
+                                      View Details
+                                    </button>
+
+                                    <button
+                                      className="delete-button"
+                                      onClick={() =>
+                                        deleteDeployment(
+                                          deployment.id
+                                        )
+                                      }
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          )
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+
+              {selectedDeployment && (
+                <section className="panel deployment-details-panel">
+                  <div className="panel-header">
+                    <div>
+                      <p className="eyebrow">
+                        DEPLOYMENT #{selectedDeployment.id}
+                      </p>
+
+                      <h3>Deployment Details</h3>
+                    </div>
 
                     <button
-                      type="submit"
-                      className="primary-button"
-                      disabled={
-                        deploymentLoading
-                      }
-                    >
-                      {deploymentLoading
-                        ? "Deploying..."
-                        : "🚀 Start Deployment"}
-                    </button>
-
-                    <button
-                      type="button"
                       className="secondary-button"
                       onClick={() =>
-                        setDeploymentData({
-                          ec2_instance_id: "",
-                          server_name: "",
-                          application: "",
-                          version: "",
-                        })
+                        setSelectedDeployment(null)
                       }
                     >
-                      Clear
+                      Close
                     </button>
-
                   </div>
 
-                </form>
+                  {deploymentDetailsLoading ? (
+                    <div className="loading-state">
+                      Loading deployment details...
+                    </div>
+                  ) : (
+                    <>
+                      <div className="details-grid">
+                        <div className="detail-item">
+                          <span>Application</span>
+                          <strong>
+                            {selectedDeployment.application ||
+                              "—"}
+                          </strong>
+                        </div>
 
-              </div>
+                        <div className="detail-item">
+                          <span>Version</span>
+                          <strong>
+                            {selectedDeployment.version || "—"}
+                          </strong>
+                        </div>
 
-            </section>
+                        <div className="detail-item">
+                          <span>Server</span>
+                          <strong>
+                            {selectedDeployment.server_name ||
+                              "—"}
+                          </strong>
+                        </div>
 
-            <section className="deployment-section">
+                        <div className="detail-item">
+                          <span>EC2 ID</span>
+                          <strong>
+                            {selectedDeployment.ec2_instance_id ||
+                              "—"}
+                          </strong>
+                        </div>
 
-              <div className="section-heading">
+                        <div className="detail-item">
+                          <span>Status</span>
 
-                <div>
-                  <h2>
-                    Deployment History
-                  </h2>
+                          <span
+                            className={`status-badge ${getStatusClass(
+                              selectedDeployment.status
+                            )}`}
+                          >
+                            <span />
+                            {selectedDeployment.status}
+                          </span>
+                        </div>
 
-                  <p>
-                    Recent deployment
-                    activity
-                  </p>
-                </div>
-
-                <input
-                  className="search-input"
-                  type="text"
-                  placeholder="Search deployments..."
-                  value={
-                    deploymentSearch
-                  }
-                  onChange={(e) =>
-                    setDeploymentSearch(
-                      e.target.value
-                    )
-                  }
-                />
-
-              </div>
-
-              <div className="table-container">
-
-                <table>
-
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Application</th>
-                      <th>Version</th>
-                      <th>Server</th>
-                      <th>Status</th>
-                      <th>Created</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-
-                    {filteredDeployments.length ===
-                      0 && (
-                      <tr>
-                        <td
-                          colSpan="7"
-                          className="empty-state"
-                        >
-                          {deploymentLoading
-                            ? "Loading deployments..."
-                            : "No deployments found."}
-                        </td>
-                      </tr>
-                    )}
-
-                    {filteredDeployments.map(
-                      (deployment) => (
-                        <tr
-                          key={
-                            deployment.id
-                          }
-                        >
-
-                          <td>
-                            <strong>
-                              #
-                              {
-                                deployment.id
-                              }
-                            </strong>
-                          </td>
-
-                          <td>
-                            <strong>
-                              {
-                                deployment.application
-                              }
-                            </strong>
-                          </td>
-
-                          <td>
-                            <code>
-                              {
-                                deployment.version
-                              }
-                            </code>
-                          </td>
-
-                          <td>
-                            <strong>
-                              {
-                                deployment.server_name ||
-                                "Unknown"
-                              }
-                            </strong>
-
-                            <small>
-                              {
-                                deployment.ec2_instance_id ||
-                                "No instance ID"
-                              }
-                            </small>
-                          </td>
-
-                          <td>
-                            <span
-                              className={
-                                "status-badge " +
-                                (deployment.status ===
-                                "successful"
-                                  ? "running"
-                                  : deployment.status ===
-                                      "failed"
-                                    ? "stopped"
-                                    : "")
-                              }
-                            >
-                              {
-                                deployment.status
-                              }
-                            </span>
-                          </td>
-
-                          <td>
+                        <div className="detail-item">
+                          <span>Created</span>
+                          <strong>
                             {formatDate(
-                              deployment.created_at
+                              selectedDeployment.created_at
                             )}
-                          </td>
+                          </strong>
+                        </div>
 
-                          <td>
+                        <div className="detail-item">
+                          <span>Started</span>
+                          <strong>
+                            {formatDate(
+                              selectedDeployment.started_at
+                            )}
+                          </strong>
+                        </div>
 
-                            <div className="action-buttons">
-
-                              <button
-                                className="edit-button"
-                                onClick={() =>
-                                  viewDeploymentDetails(
-                                    deployment.id
-                                  )
-                                }
-                                disabled={
-                                  deploymentDetailsLoading
-                                }
-                              >
-                                {deploymentDetailsLoading
-                                  ? "Loading..."
-                                  : "View Details"}
-                              </button>
-
-                              <button
-                                className="delete-button"
-                                onClick={() =>
-                                  deleteDeployment(
-                                    deployment.id
-                                  )
-                                }
-                              >
-                                Delete
-                              </button>
-
-                            </div>
-
-                          </td>
-
-                        </tr>
-                      )
-                    )}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-
-            </section>
-
-            {selectedDeployment && (
-              <section className="deployment-section">
-
-                <div className="section-heading">
-
-                  <div>
-                    <h2>
-                      Deployment Details #
-                      {selectedDeployment.id}
-                    </h2>
-
-                    <p>
-                      Complete deployment
-                      information and logs
-                    </p>
-                  </div>
-
-                  <button
-                    className="secondary-button"
-                    onClick={
-                      closeDeploymentDetails
-                    }
-                  >
-                    ✕ Close Details
-                  </button>
-
-                </div>
-
-                <div className="deployment-details-card">
-
-                  <div className="deployment-details-grid">
-
-                    <div className="detail-item">
-                      <span>
-                        Application
-                      </span>
-
-                      <strong>
-                        {
-                          selectedDeployment.application ||
-                          "—"
-                        }
-                      </strong>
-                    </div>
-
-                    <div className="detail-item">
-                      <span>
-                        Version
-                      </span>
-
-                      <code>
-                        {
-                          selectedDeployment.version ||
-                          "—"
-                        }
-                      </code>
-                    </div>
-
-                    <div className="detail-item">
-                      <span>
-                        Server
-                      </span>
-
-                      <strong>
-                        {
-                          selectedDeployment.server_name ||
-                          "—"
-                        }
-                      </strong>
-                    </div>
-
-                    <div className="detail-item">
-                      <span>
-                        EC2 Instance ID
-                      </span>
-
-                      <code>
-                        {
-                          selectedDeployment.ec2_instance_id ||
-                          "—"
-                        }
-                      </code>
-                    </div>
-
-                    <div className="detail-item">
-                      <span>
-                        Status
-                      </span>
-
-                      <span
-                        className={
-                          "status-badge " +
-                          (selectedDeployment.status ===
-                          "successful"
-                            ? "running"
-                            : selectedDeployment.status ===
-                                "failed"
-                              ? "stopped"
-                              : "")
-                        }
-                      >
-                        {
-                          selectedDeployment.status ||
-                          "unknown"
-                        }
-                      </span>
-                    </div>
-
-                    <div className="detail-item">
-                      <span>
-                        Created
-                      </span>
-
-                      <strong>
-                        {formatDate(
-                          selectedDeployment.created_at
-                        )}
-                      </strong>
-                    </div>
-
-                    <div className="detail-item">
-                      <span>
-                        Started
-                      </span>
-
-                      <strong>
-                        {formatDate(
-                          selectedDeployment.started_at
-                        )}
-                      </strong>
-                    </div>
-
-                    <div className="detail-item">
-                      <span>
-                        Completed
-                      </span>
-
-                      <strong>
-                        {formatDate(
-                          selectedDeployment.completed_at
-                        )}
-                      </strong>
-                    </div>
-
-                  </div>
-
-                  <div className="deployment-logs-section">
-
-                    <div className="logs-header">
-
-                      <div>
-                        <h3>
-                          Deployment Logs
-                        </h3>
-
-                        <p>
-                          Output captured from
-                          the deployment worker
-                        </p>
+                        <div className="detail-item">
+                          <span>Completed</span>
+                          <strong>
+                            {formatDate(
+                              selectedDeployment.completed_at
+                            )}
+                          </strong>
+                        </div>
                       </div>
 
-                    </div>
+                      <div className="logs-section">
+                        <div className="logs-header">
+                          <div>
+                            <p className="eyebrow">
+                              EXECUTION OUTPUT
+                            </p>
+                            <h4>Deployment Logs</h4>
+                          </div>
+                        </div>
 
-                    <pre className="deployment-logs">
-                      {selectedDeployment.logs ||
-                        "No deployment logs available."}
-                    </pre>
-
-                  </div>
-
-                </div>
-
-              </section>
-            )}
-
-          </>
-        )}
-
+                        <pre className="deployment-logs">
+                          {selectedDeployment.logs ||
+                            "No deployment logs available."}
+                        </pre>
+                      </div>
+                    </>
+                  )}
+                </section>
+              )}
+            </>
+          )}
+        </div>
       </main>
-
-      <footer className="footer">
-
-        <span>
-          CloudOps Automator
-        </span>
-
-        <span>
-          AWS & DevOps Management
-          Platform
-        </span>
-
-      </footer>
-
     </div>
   );
 }
