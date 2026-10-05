@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from .models import Server, Deployment, Alert
 from .serializers import (
     ServerSerializer,
-       DeploymentSerializer,
+    DeploymentSerializer,
     AlertSerializer,
     RegisterSerializer,
 )
@@ -263,6 +263,26 @@ def stop_ec2(request, instance_id):
             instance_id
         )
 
+        # Get EC2 instance details for the alert
+        ec2_instances = get_ec2_instances()
+
+        instance_name = "Unnamed"
+
+        for instance in ec2_instances:
+            if instance["id"] == instance_id:
+                instance_name = instance["name"]
+                break
+
+        # Create automatic alert
+        Alert.objects.create(
+            title="EC2 Server Stopped",
+            message=f"EC2 instance {instance_name} has been stopped.",
+            alert_type="server_stopped",
+            severity="warning",
+            ec2_instance_id=instance_id,
+            server_name=instance_name,
+        )
+
         return Response({
             "message": "EC2 instance stop requested",
             "instance": result
@@ -388,6 +408,8 @@ def register(request):
         serializer.errors,
         status=400
     )
+
+
 # =========================
 # ALERTS
 # =========================
@@ -436,7 +458,10 @@ def mark_alert_read(request, pk):
         }, status=404)
 
     alert.is_read = True
-    alert.save(update_fields=["is_read"])
+
+    alert.save(
+        update_fields=["is_read"]
+    )
 
     return Response({
         "message": "Alert marked as read",
