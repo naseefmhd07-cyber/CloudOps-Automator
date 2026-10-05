@@ -2,16 +2,18 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Server, Deployment
+from .models import Server, Deployment, Alert
 from .serializers import (
     ServerSerializer,
-    DeploymentSerializer,
+       DeploymentSerializer,
+    AlertSerializer,
     RegisterSerializer,
 )
 from .aws_service import (
     get_ec2_instances,
     start_ec2_instance,
     stop_ec2_instance,
+    get_ec2_metrics,
 )
 from .deployment_service import run_deployment
 
@@ -80,7 +82,6 @@ def servers(request):
 
     if request.method == "GET":
 
-        # Try to get live EC2 instances
         try:
             ec2_instances = get_ec2_instances()
 
@@ -195,6 +196,34 @@ def server_detail(request, pk):
 
 
 # =========================
+# EC2 MONITORING
+# =========================
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def ec2_monitoring(request, instance_id):
+
+    try:
+
+        metrics = get_ec2_metrics(
+            instance_id
+        )
+
+        return Response({
+            "instance_id": instance_id,
+            "region": "us-east-1",
+            "metrics": metrics,
+        })
+
+    except Exception as e:
+
+        return Response({
+            "error": "Unable to fetch CloudWatch metrics",
+            "details": str(e)
+        }, status=500)
+
+
+# =========================
 # START EC2 INSTANCE
 # =========================
 
@@ -281,8 +310,6 @@ def deployments(request):
                 status="pending"
             )
 
-            # Start the independent systemd deployment worker.
-            # The deployment continues even if Gunicorn restarts.
             run_deployment(deployment.id)
 
             return Response({
@@ -361,3 +388,57 @@ def register(request):
         serializer.errors,
         status=400
     )
+# =========================
+# ALERTS
+# =========================
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def alerts(request):
+
+    alert_list = Alert.objects.order_by(
+        "-created_at"
+    )
+
+    serializer = AlertSerializer(
+        alert_list,
+        many=True
+    )
+
+    unread_count = Alert.objects.filter(
+        is_read=False
+    ).count()
+
+    return Response({
+        "alerts": serializer.data,
+        "unread_count": unread_count,
+    })
+
+
+# =========================
+# MARK ALERT AS READ
+# =========================
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def mark_alert_read(request, pk):
+
+    try:
+
+        alert = Alert.objects.get(
+            pk=pk
+        )
+
+    except Alert.DoesNotExist:
+
+        return Response({
+            "error": "Alert not found"
+        }, status=404)
+
+    alert.is_read = True
+    alert.save(update_fields=["is_read"])
+
+    return Response({
+        "message": "Alert marked as read",
+        "alert": AlertSerializer(alert).data,
+    })

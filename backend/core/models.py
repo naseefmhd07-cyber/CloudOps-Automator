@@ -86,3 +86,54 @@ class Deployment(models.Model):
 
     def __str__(self):
         return f"{self.application} - {self.version}"
+class Alert(models.Model):
+    ALERT_TYPES = [
+        ("high_cpu", "High CPU"),
+        ("server_stopped", "Server Stopped"),
+        ("deployment_failed", "Deployment Failed"),
+        ("deployment_successful", "Deployment Successful"),
+    ]
+
+    SEVERITY_CHOICES = [
+        ("info", "Info"),
+        ("warning", "Warning"),
+        ("critical", "Critical"),
+    ]
+
+    title = models.CharField(max_length=200)
+
+    message = models.TextField()
+
+    alert_type = models.CharField(
+        max_length=50,
+        choices=ALERT_TYPES
+    )
+
+    severity = models.CharField(
+        max_length=20,
+        choices=SEVERITY_CHOICES,
+        default="info"
+    )
+
+    ec2_instance_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default=""
+    )
+
+    server_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default=""
+    )
+
+    is_read = models.BooleanField(
+        default=False
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return self.title

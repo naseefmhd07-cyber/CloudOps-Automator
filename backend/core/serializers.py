@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
-from .models import Server, Deployment
+from .models import Server, Deployment, Alert
 
 
 class ServerSerializer(serializers.ModelSerializer):
@@ -49,6 +49,29 @@ class DeploymentSerializer(serializers.ModelSerializer):
             "created_at",
             "completed_at",
             "logs",
+        ]
+
+
+class AlertSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Alert
+
+        fields = [
+            "id",
+            "title",
+            "message",
+            "alert_type",
+            "severity",
+            "ec2_instance_id",
+            "server_name",
+            "is_read",
+            "created_at",
+        ]
+
+        read_only_fields = [
+            "id",
+            "created_at",
         ]
 
 
