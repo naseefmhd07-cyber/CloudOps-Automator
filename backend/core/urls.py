@@ -70,6 +70,11 @@ urlpatterns = [
         views.ec2_monitoring,
         name="ec2_monitoring"
     ),
+    path(
+    "monitoring/<str:instance_id>/check-cpu/",
+    views.check_cpu_alert,
+    name="check_cpu_alert",
+),
 
     # =========================
     # DEPLOYMENTS

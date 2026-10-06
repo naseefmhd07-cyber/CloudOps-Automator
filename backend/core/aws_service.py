@@ -116,3 +116,24 @@ def get_ec2_metrics(instance_id):
         }
 
     return metrics
+
+
+def check_high_cpu(instance_id, threshold=80):
+    """
+    Check whether an EC2 instance has high CPU utilization.
+    Returns the CPU value if it is above the threshold.
+    """
+
+    metrics = get_ec2_metrics(instance_id)
+
+    cpu_metric = metrics.get("CPUUtilization")
+
+    if not cpu_metric:
+        return None
+
+    cpu_value = cpu_metric.get("value")
+
+    if cpu_value is not None and cpu_value >= threshold:
+        return cpu_value
+
+    return None

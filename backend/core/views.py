@@ -14,6 +14,7 @@ from .aws_service import (
     start_ec2_instance,
     stop_ec2_instance,
     get_ec2_metrics,
+    check_high_cpu,
 )
 from .deployment_service import run_deployment
 
@@ -467,3 +468,60 @@ def mark_alert_read(request, pk):
         "message": "Alert marked as read",
         "alert": AlertSerializer(alert).data,
     })
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def check_cpu_alert(request, instance_id):
+    try:
+        cpu_value = check_high_cpu(instance_id, threshold=80)
+
+        if cpu_value is None:
+            return Response({
+                "alert_created": False,
+                "message": "CPU usage is below 80% or no metric is available.",
+            })
+
+        ec2_instances = get_ec2_instances()
+
+        instance_name = "Unnamed"
+
+        for instance in ec2_instances:
+            if instance["id"] == instance_id:
+                instance_name = instance["name"]
+                break
+
+        existing_alert = Alert.objects.filter(
+            alert_type="high_cpu",
+            ec2_instance_id=instance_id,
+            is_read=False,
+        ).first()
+
+        if existing_alert:
+            return Response({
+                "alert_created": False,
+                "message": "An unread high CPU alert already exists.",
+                "cpu": cpu_value,
+            })
+
+        alert = Alert.objects.create(
+            title="High CPU Usage",
+            message=(
+                f"EC2 instance {instance_name} is using "
+                f"{cpu_value:.2f}% CPU."
+            ),
+            alert_type="high_cpu",
+            severity="critical",
+            ec2_instance_id=instance_id,
+            server_name=instance_name,
+        )
+
+        return Response({
+            "alert_created": True,
+            "message": "High CPU alert created.",
+            "cpu": cpu_value,
+            "alert": AlertSerializer(alert).data,
+        })
+
+    except Exception as e:
+        return Response({
+            "error": str(e)
+        }, status=500)
