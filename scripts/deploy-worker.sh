@@ -49,6 +49,7 @@ if bash "$PROJECT_DIR/scripts/deploy.sh"; then
     "$VENV/bin/python" manage.py shell -c "
 from django.utils import timezone
 from core.models import Deployment
+from core.models import Alert
 
 d = Deployment.objects.get(pk=$DEPLOYMENT_ID)
 
@@ -60,16 +61,14 @@ d.completed_at = timezone.now()
 d.logs = deployment_logs
 d.save(update_fields=['status', 'completed_at', 'logs'])
 
-from core.models import Alert
-
 Alert.objects.create(
-    title="Deployment Successful",
+    title='Deployment Successful',
     message=(
-        f"Deployment #{d.id} for {d.application} "
-        f"version {d.version} completed successfully."
+        f'Deployment #{d.id} for {d.application} '
+        f'version {d.version} completed successfully.'
     ),
-    alert_type="deployment_successful",
-    severity="info",
+    alert_type='deployment_successful',
+    severity='info',
     ec2_instance_id=d.ec2_instance_id,
     server_name=d.server_name,
 )
@@ -92,6 +91,7 @@ else
     "$VENV/bin/python" manage.py shell -c "
 from django.utils import timezone
 from core.models import Deployment
+from core.models import Alert
 
 d = Deployment.objects.get(pk=$DEPLOYMENT_ID)
 
@@ -103,21 +103,20 @@ d.completed_at = timezone.now()
 d.logs = deployment_logs
 d.save(update_fields=['status', 'completed_at', 'logs'])
 
-from core.models import Alert
-
 Alert.objects.create(
-    title="Deployment Failed",
+    title='Deployment Failed',
     message=(
-        f"Deployment #{d.id} for {d.application} "
-        f"version {d.version} failed."
+        f'Deployment #{d.id} for {d.application} '
+        f'version {d.version} failed.'
     ),
-    alert_type="deployment_failed",
-    severity="critical",
+    alert_type='deployment_failed',
+    severity='critical',
     ec2_instance_id=d.ec2_instance_id,
     server_name=d.server_name,
 )
 
-print('Deployment #$DEPLOYMENT_ID marked as failed.')"
+print('Deployment #$DEPLOYMENT_ID marked as failed.')
+"
 
     echo ""
     echo "========================================"
