@@ -60,6 +60,20 @@ d.completed_at = timezone.now()
 d.logs = deployment_logs
 d.save(update_fields=['status', 'completed_at', 'logs'])
 
+from core.models import Alert
+
+Alert.objects.create(
+    title="Deployment Successful",
+    message=(
+        f"Deployment #{d.id} for {d.application} "
+        f"version {d.version} completed successfully."
+    ),
+    alert_type="deployment_successful",
+    severity="info",
+    ec2_instance_id=d.ec2_instance_id,
+    server_name=d.server_name,
+)
+
 print('Deployment #$DEPLOYMENT_ID marked as successful.')
 "
 
@@ -89,8 +103,21 @@ d.completed_at = timezone.now()
 d.logs = deployment_logs
 d.save(update_fields=['status', 'completed_at', 'logs'])
 
-print('Deployment #$DEPLOYMENT_ID marked as failed.')
-"
+from core.models import Alert
+
+Alert.objects.create(
+    title="Deployment Failed",
+    message=(
+        f"Deployment #{d.id} for {d.application} "
+        f"version {d.version} failed."
+    ),
+    alert_type="deployment_failed",
+    severity="critical",
+    ec2_instance_id=d.ec2_instance_id,
+    server_name=d.server_name,
+)
+
+print('Deployment #$DEPLOYMENT_ID marked as failed.')"
 
     echo ""
     echo "========================================"
