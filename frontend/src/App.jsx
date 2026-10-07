@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API_BASE = "/api";
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
 function App() {
   const [token, setToken] = useState(() =>
@@ -35,11 +35,21 @@ function App() {
   const [selectedMonitoringServer, setSelectedMonitoringServer] =
     useState(null);
 
+  // ============================================================
+  // GENERAL STATE
+  // ============================================================
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [searchServer, setSearchServer] = useState("");
   const [searchDeployment, setSearchDeployment] = useState("");
+  const [deploymentStatusFilter, setDeploymentStatusFilter] =
+    useState("all");
+
+  // ============================================================
+  // DEPLOYMENT STATE
+  // ============================================================
 
   const [deploymentForm, setDeploymentForm] = useState({
     application: "",
@@ -51,6 +61,10 @@ function App() {
   const [selectedDeployment, setSelectedDeployment] = useState(null);
   const [deploymentDetailsLoading, setDeploymentDetailsLoading] =
     useState(false);
+
+  // ============================================================
+  // AUTH STATE
+  // ============================================================
 
   const [authMode, setAuthMode] = useState("login");
 
@@ -1357,19 +1371,36 @@ function App() {
       const search =
         searchDeployment.toLowerCase();
 
+      const status =
+        String(
+          deployment.status || ""
+        ).toLowerCase();
+
+      const matchesSearch =
+        String(
+          deployment.application || ""
+        )
+          .toLowerCase()
+          .includes(search) ||
+        String(
+          deployment.version || ""
+        )
+          .toLowerCase()
+          .includes(search) ||
+        String(
+          deployment.server_name || ""
+        )
+          .toLowerCase()
+          .includes(search) ||
+        status.includes(search);
+
+      const matchesStatus =
+        deploymentStatusFilter === "all" ||
+        status === deploymentStatusFilter;
+
       return (
-        String(deployment.application || "")
-          .toLowerCase()
-          .includes(search) ||
-        String(deployment.version || "")
-          .toLowerCase()
-          .includes(search) ||
-        String(deployment.server_name || "")
-          .toLowerCase()
-          .includes(search) ||
-        String(deployment.status || "")
-          .toLowerCase()
-          .includes(search)
+        matchesSearch &&
+        matchesStatus
       );
     }
   );
@@ -2745,26 +2776,116 @@ function App() {
                       <h3>
                         Deployment History
                       </h3>
+
+                      <span className="panel-count">
+                        {
+                          filteredDeployments.length
+                        }{" "}
+                        of{" "}
+                        {totalDeployments}{" "}
+                        deployments
+                      </span>
                     </div>
 
-                    <div className="search-box">
-                      <span>⌕</span>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        alignItems:
+                          "center",
+                        flexWrap:
+                          "wrap",
+                        justifyContent:
+                          "flex-end",
+                      }}
+                    >
+                      <div className="search-box">
+                        <span>⌕</span>
 
-                      <input
+                        <input
+                          value={
+                            searchDeployment
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setSearchDeployment(
+                              event
+                                .target
+                                .value
+                            )
+                          }
+                          placeholder="Search..."
+                        />
+                      </div>
+
+                      <select
                         value={
-                          searchDeployment
+                          deploymentStatusFilter
                         }
                         onChange={(
                           event
                         ) =>
-                          setSearchDeployment(
+                          setDeploymentStatusFilter(
                             event
                               .target
                               .value
                           )
                         }
-                        placeholder="Search..."
-                      />
+                        style={{
+                          minHeight:
+                            "42px",
+                          padding:
+                            "0 12px",
+                          borderRadius:
+                            "10px",
+                          border:
+                            "1px solid var(--border-color, #d1d5db)",
+                          background:
+                            "var(--card-bg, #ffffff)",
+                          color:
+                            "inherit",
+                          fontSize:
+                            "13px",
+                          fontWeight:
+                            "600",
+                          cursor:
+                            "pointer",
+                        }}
+                      >
+                        <option value="all">
+                          All Status
+                        </option>
+
+                        <option value="pending">
+                          Pending
+                        </option>
+
+                        <option value="running">
+                          Running
+                        </option>
+
+                        <option value="successful">
+                          Successful
+                        </option>
+
+                        <option value="failed">
+                          Failed
+                        </option>
+                      </select>
+
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() =>
+                          loadAllData()
+                        }
+                        disabled={loading}
+                      >
+                        {loading
+                          ? "Loading..."
+                          : "↻ Refresh"}
+                      </button>
                     </div>
                   </div>
 
@@ -2874,6 +2995,7 @@ function App() {
                                   <div className="table-actions">
                                     <button
                                       className="details-button"
+                                      type="button"
                                       onClick={() =>
                                         viewDeploymentDetails(
                                           deployment.id
@@ -2885,6 +3007,7 @@ function App() {
 
                                     <button
                                       className="delete-button"
+                                      type="button"
                                       onClick={() =>
                                         deleteDeployment(
                                           deployment.id
@@ -2923,6 +3046,7 @@ function App() {
 
                     <button
                       className="secondary-button"
+                      type="button"
                       onClick={() =>
                         setSelectedDeployment(
                           null
