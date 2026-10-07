@@ -13,3 +13,5 @@ dist/
 
 # Environment
 .env.*
+# Local database
+backend/db.sqlite3
