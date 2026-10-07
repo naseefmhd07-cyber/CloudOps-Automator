@@ -1,115 +1,519 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import "./App.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "/api";
+const TOKEN_KEY = "access_token";
 
-function App() {
+/* =========================
+   ICONS
+========================= */
+
+function Icon({ name, size = 18, strokeWidth = 1.8 }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+  };
+
+  const icons = {
+    dashboard: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </>
+    ),
+    server: (
+      <>
+        <rect x="3" y="4" width="18" height="7" rx="1.5" />
+        <rect x="3" y="13" width="18" height="7" rx="1.5" />
+        <path d="M7 7.5h.01M7 16.5h.01" />
+        <path d="M11 7.5h7M11 16.5h7" />
+      </>
+    ),
+    monitor: (
+      <>
+        <rect x="3" y="4" width="18" height="13" rx="2" />
+        <path d="M8 21h8M12 17v4" />
+        <path d="m7 12 3-3 3 3 4-5" />
+      </>
+    ),
+    deployment: (
+      <>
+        <path d="M12 3v12" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M5 21h14" />
+        <path d="M5 17v4M19 17v4" />
+      </>
+    ),
+    alert: (
+      <>
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+        <path d="M10 21h4" />
+      </>
+    ),
+    refresh: (
+      <>
+        <path d="M20 11a8.1 8.1 0 0 0-14.8-4L3 10" />
+        <path d="M3 5v5h5" />
+        <path d="M4 13a8.1 8.1 0 0 0 14.8 4L21 14" />
+        <path d="M21 19v-5h-5" />
+      </>
+    ),
+    logout: (
+      <>
+        <path d="M10 17l5-5-5-5" />
+        <path d="M15 12H3" />
+        <path d="M21 19V5a2 2 0 0 0-2-2h-5" />
+      </>
+    ),
+    plus: <path d="M12 5v14M5 12h14" />,
+    search: (
+      <>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-4-4" />
+      </>
+    ),
+    eye: (
+      <>
+        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+        <circle cx="12" cy="12" r="2.5" />
+      </>
+    ),
+    play: <path d="m9 6 10 6-10 6V6Z" />,
+    stop: <rect x="7" y="7" width="10" height="10" rx="1" />,
+    trash: (
+      <>
+        <path d="M4 7h16M10 11v6M14 11v6" />
+        <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
+      </>
+    ),
+    close: (
+      <>
+        <path d="m6 6 12 12M18 6 6 18" />
+      </>
+    ),
+    menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+    check: <path d="m5 12 4 4L19 6" />,
+    warning: (
+      <>
+        <path d="M12 3 22 20H2L12 3Z" />
+        <path d="M12 9v5M12 17h.01" />
+      </>
+    ),
+    info: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5M12 8h.01" />
+      </>
+    ),
+    arrow: (
+      <>
+        <path d="M5 12h14M13 6l6 6-6 6" />
+      </>
+    ),
+    cloud: (
+      <path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 8.5 4.5 4.5 0 0 0 7 18Z" />
+    ),
+    shield: (
+      <>
+        <path d="M12 3 20 6v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3Z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
+    activity: <path d="M3 12h4l2-7 4 14 2-7h6" />,
+    cpu: (
+      <>
+        <rect x="7" y="7" width="10" height="10" rx="1" />
+        <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 15h3M1 9h3M1 15h3" />
+      </>
+    ),
+    network: (
+      <>
+        <rect x="9" y="3" width="6" height="5" rx="1" />
+        <rect x="3" y="16" width="6" height="5" rx="1" />
+        <rect x="15" y="16" width="6" height="5" rx="1" />
+        <path d="M12 8v4M6 16v-2h12v2" />
+      </>
+    ),
+    database: (
+      <>
+        <ellipse cx="12" cy="5" rx="7" ry="3" />
+        <path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5" />
+        <path d="M5 12v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7" />
+      </>
+    ),
+    calendar: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M16 3v4M8 3v4M3 10h18" />
+      </>
+    ),
+    terminal: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="m7 9 3 3-3 3M12 15h5" />
+      </>
+    ),
+    lock: (
+      <>
+        <rect x="5" y="10" width="14" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+    user: (
+      <>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
+      </>
+    ),
+  };
+
+  return <svg {...common}>{icons[name] || icons.info}</svg>;
+}
+
+/* =========================
+   HELPERS
+========================= */
+
+function formatDate(value) {
+  if (!value) return "—";
+
+  try {
+    return new Date(value).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(value);
+  }
+}
+
+function normalizeStatus(value) {
+  return String(value || "unknown").toLowerCase();
+}
+
+function getServerStatus(server) {
+  return normalizeStatus(server?.status || server?.state);
+}
+
+function getServerIp(server) {
+  return server?.ip_address || server?.public_ip || "No Public IP";
+}
+
+function getServerType(server) {
+  return (
+    server?.instance_type ||
+    server?.server_type ||
+    server?.type ||
+    "EC2"
+  );
+}
+
+function getInstanceId(server) {
+  return (
+    server?.instance_id ||
+    server?.ec2_instance_id ||
+    server?.id
+  );
+}
+
+function getStatusClass(status) {
+  const value = normalizeStatus(status);
+
+  if (
+    ["running", "successful", "success", "active"].includes(value)
+  ) {
+    return "badge-success";
+  }
+
+  if (
+    ["failed", "error", "critical"].includes(value)
+  ) {
+    return "badge-danger";
+  }
+
+  if (
+    [
+      "pending",
+      "stopped",
+      "warning",
+      "starting",
+      "stopping",
+      "info",
+    ].includes(value)
+  ) {
+    return value === "warning"
+      ? "badge-warning"
+      : "badge-stopped";
+  }
+
+  return "badge-neutral";
+}
+
+function getAlertIcon(type) {
+  if (type === "deployment_failed") return "warning";
+  if (type === "deployment_successful") return "check";
+  if (type === "high_cpu") return "cpu";
+  if (type === "server_stopped") return "server";
+  return "info";
+}
+
+function StatusBadge({ status }) {
+  return (
+    <span className={`badge ${getStatusClass(status)}`}>
+      <span className="badge-dot" />
+      {String(status || "unknown").replaceAll("_", " ")}
+    </span>
+  );
+}
+
+/* =========================
+   APP
+========================= */
+
+function DeploymentModal({ showDeploymentForm, setShowDeploymentForm, deploymentForm, setDeploymentForm, createDeployment }) {
+    if (!showDeploymentForm) return null;
+
+    return (
+      <div className="modal-backdrop">
+        <div className="modal">
+          <div className="modal-header">
+            <div>
+              <h2 className="modal-title">
+                Create deployment
+              </h2>
+
+              <p className="panel-subtitle">
+                Create a new deployment record.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() =>
+                setShowDeploymentForm(false)
+              }
+            >
+              <Icon
+                name="close"
+                size={16}
+              />
+            </button>
+          </div>
+
+          <form
+            onSubmit={createDeployment}
+          >
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group full">
+                  <label className="form-label">
+                    Application
+                  </label>
+
+                  <input
+                    className="form-input"
+                    value={
+                      deploymentForm.application
+                    }
+                    onChange={(event) =>
+                      setDeploymentForm({
+                        ...deploymentForm,
+                        application:
+                          event.target.value,
+                      })
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Version
+                  </label>
+
+                  <input
+                    className="form-input"
+                    value={
+                      deploymentForm.version
+                    }
+                    onChange={(event) =>
+                      setDeploymentForm({
+                        ...deploymentForm,
+                        version:
+                          event.target.value,
+                      })
+                    }
+                    placeholder="v1.0"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Server name
+                  </label>
+
+                  <input
+                    className="form-input"
+                    value={
+                      deploymentForm.server_name
+                    }
+                    onChange={(event) =>
+                      setDeploymentForm({
+                        ...deploymentForm,
+                        server_name:
+                          event.target.value,
+                      })
+                    }
+                    placeholder="EC2 server"
+                  />
+                </div>
+
+                <div className="form-group full">
+                  <label className="form-label">
+                    EC2 Instance ID
+                  </label>
+
+                  <input
+                    className="form-input"
+                    value={
+                      deploymentForm.ec2_instance_id
+                    }
+                    onChange={(event) =>
+                      setDeploymentForm({
+                        ...deploymentForm,
+                        ec2_instance_id:
+                          event.target.value,
+                      })
+                    }
+                    placeholder="i-xxxxxxxxxxxxxxxxx"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() =>
+                  setShowDeploymentForm(
+                    false
+                  )
+                }
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                className="btn btn-primary"
+              >
+                <Icon
+                  name="deployment"
+                  size={14}
+                />
+                Create deployment
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+export default function App() {
   const [token, setToken] = useState(() =>
-    localStorage.getItem("access_token")
+    localStorage.getItem(TOKEN_KEY)
   );
 
   const [page, setPage] = useState("dashboard");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem("cloudops-theme") === "dark";
-  });
+  const [mobileMenu, setMobileMenu] = useState(false);
 
   const [servers, setServers] = useState([]);
   const [dashboard, setDashboard] = useState(null);
   const [deployments, setDeployments] = useState([]);
-
-  // ============================================================
-  // ALERTS STATE
-  // ============================================================
-
   const [alerts, setAlerts] = useState([]);
-  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
-  const [alertsLoading, setAlertsLoading] = useState(false);
-
-  // ============================================================
-  // EC2 MONITORING STATE
-  // ============================================================
-
-  const [monitoring, setMonitoring] = useState({});
-  const [monitoringLoading, setMonitoringLoading] = useState({});
-  const [selectedMonitoringServer, setSelectedMonitoringServer] =
-    useState(null);
-
-  // ============================================================
-  // GENERAL STATE
-  // ============================================================
+  const [monitoring, setMonitoring] = useState(null);
 
   const [loading, setLoading] = useState(false);
+  const [monitoringLoading, setMonitoringLoading] = useState(false);
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const [searchServer, setSearchServer] = useState("");
-  const [searchDeployment, setSearchDeployment] = useState("");
-  const [deploymentStatusFilter, setDeploymentStatusFilter] =
-    useState("all");
+  const [loginForm, setLoginForm] = useState({
+    username: "",
+    password: "",
+  });
 
-  // ============================================================
-  // DEPLOYMENT STATE
-  // ============================================================
+  const [registerForm, setRegisterForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+  });
+
+  const [authMode, setAuthMode] = useState("login");
+
+  const [search, setSearch] = useState("");
+  const [deploymentSearch, setDeploymentSearch] = useState("");
+  const [deploymentFilter, setDeploymentFilter] = useState("all");
+
+  const [showDeploymentForm, setShowDeploymentForm] =
+    useState(false);
+
+  const [selectedDeployment, setSelectedDeployment] =
+    useState(null);
+
+  const [deploymentLogs, setDeploymentLogs] = useState("");
 
   const [deploymentForm, setDeploymentForm] = useState({
-    application: "",
-    version: "",
+    application: "CloudOps Automator",
+    version: "v1.0",
     server_name: "",
     ec2_instance_id: "",
   });
 
-  const [selectedDeployment, setSelectedDeployment] = useState(null);
-  const [deploymentDetailsLoading, setDeploymentDetailsLoading] =
-    useState(false);
-
-  // ============================================================
-  // AUTH STATE
-  // ============================================================
-
-  const [authMode, setAuthMode] = useState("login");
-
-  const [authForm, setAuthForm] = useState({
-    username: "",
-    password: "",
-    email: "",
-  });
-
-  // ============================================================
-  // THEME
-  // ============================================================
+  useEffect(() => {
+    document.documentElement.classList.add("dark");
+  }, []);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
+    if (!token) return;
 
-    localStorage.setItem(
-      "cloudops-theme",
-      darkMode ? "dark" : "light"
-    );
-  }, [darkMode]);
-
-  // ============================================================
-  // LOAD DATA AFTER LOGIN
-  // ============================================================
-
-  useEffect(() => {
-    if (token) {
-      loadAllData();
-      loadAlerts();
-    }
+    loadAllData();
+    loadAlerts();
   }, [token]);
 
-  // ============================================================
-  // API HELPER
-  // ============================================================
+  /* =========================
+     API
+  ========================= */
 
   async function apiFetch(endpoint, options = {}) {
     const headers = {
-      "Content-Type": "application/json",
       ...(options.headers || {}),
     };
 
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+
+    if (storedToken) {
+      headers.Authorization = `Bearer ${storedToken}`;
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -117,504 +521,101 @@ function App() {
       headers,
     });
 
-    const contentType =
-      response.headers.get("content-type") || "";
+    let data = null;
 
-    const data = contentType.includes("application/json")
-      ? await response.json()
-      : await response.text();
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (response.status === 401) {
+      localStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      throw new Error("Session expired. Please sign in again.");
+    }
 
     if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem("access_token");
-        setToken(null);
-      }
-
-      const message =
-        typeof data === "object"
-          ? data.detail ||
-            data.message ||
-            data.error ||
-            "Request failed."
-          : data || "Request failed.";
-
-      throw new Error(message);
+      throw new Error(
+        data?.detail ||
+          data?.message ||
+          data?.error ||
+          "Something went wrong."
+      );
     }
 
     return data;
   }
 
-  // ============================================================
-  // LOAD DASHBOARD DATA
-  // ============================================================
-
-  async function loadAllData() {
-    setLoading(true);
-    setError("");
+  async function loadAllData(showLoader = false) {
+    if (showLoader) setLoading(true);
 
     try {
-      const [
-        serverData,
-        dashboardData,
-        deploymentData,
-      ] = await Promise.all([
-        apiFetch("/servers/"),
-        apiFetch("/dashboard/"),
-        apiFetch("/deployments/"),
-      ]);
+      const [serverData, dashboardData, deploymentData] =
+        await Promise.all([
+          apiFetch("/servers/"),
+          apiFetch("/dashboard/"),
+          apiFetch("/deployments/"),
+        ]);
 
-      const liveServers = Array.isArray(serverData)
-        ? serverData
-        : Array.isArray(serverData?.servers)
-        ? serverData.servers
-        : [];
+      setServers(
+        Array.isArray(serverData)
+          ? serverData
+          : serverData?.servers ||
+              serverData?.results ||
+              []
+      );
 
-      setServers(liveServers);
       setDashboard(dashboardData);
 
-      const deploymentList = Array.isArray(deploymentData)
-        ? deploymentData
-        : Array.isArray(deploymentData?.deployments)
-        ? deploymentData.deployments
-        : [];
-
-      setDeployments(deploymentList);
+      setDeployments(
+        Array.isArray(deploymentData)
+          ? deploymentData
+          : deploymentData?.deployments ||
+              deploymentData?.results ||
+              []
+      );
     } catch (err) {
-      console.error(err);
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   }
 
-  // ============================================================
-  // ALERTS
-  // ============================================================
-
   async function loadAlerts() {
-    if (!token) {
-      return;
-    }
-
-    setAlertsLoading(true);
-
     try {
       const data = await apiFetch("/alerts/");
 
-      const alertList = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.alerts)
-        ? data.alerts
-        : [];
-
-      setAlerts(alertList);
-
-      const count =
-        typeof data?.unread_count === "number"
-          ? data.unread_count
-          : alertList.filter(
-              (alert) => !alert.is_read
-            ).length;
-
-      setUnreadAlertCount(count);
-    } catch (err) {
-      console.error("Unable to load alerts:", err);
-    } finally {
-      setAlertsLoading(false);
-    }
-  }
-
-  async function markAlertRead(id) {
-    try {
-      setError("");
-
-      await apiFetch(`/alerts/${id}/read/`, {
-        method: "PATCH",
-      });
-
-      setAlerts((previous) =>
-        previous.map((alert) =>
-          alert.id === id
-            ? {
-                ...alert,
-                is_read: true,
-              }
-            : alert
-        )
-      );
-
-      setUnreadAlertCount((previous) =>
-        Math.max(0, previous - 1)
+      setAlerts(
+        Array.isArray(data)
+          ? data
+          : data?.alerts || data?.results || []
       );
     } catch (err) {
-      console.error(err);
       setError(err.message);
     }
   }
 
-  async function markAllAlertsRead() {
-    const unreadAlerts = alerts.filter(
-      (alert) => !alert.is_read
-    );
+  async function refreshData() {
+    setError("");
+    setMessage("");
 
-    if (unreadAlerts.length === 0) {
-      return;
-    }
+    await loadAllData(true);
+    await loadAlerts();
 
-    try {
-      setError("");
-
-      await Promise.all(
-        unreadAlerts.map((alert) =>
-          apiFetch(
-            `/alerts/${alert.id}/read/`,
-            {
-              method: "PATCH",
-            }
-          )
-        )
-      );
-
-      setAlerts((previous) =>
-        previous.map((alert) => ({
-          ...alert,
-          is_read: true,
-        }))
-      );
-
-      setUnreadAlertCount(0);
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-    }
+    setMessage("Workspace refreshed.");
   }
 
-  function getAlertSeverityClass(severity) {
-    switch (
-      String(severity || "").toLowerCase()
-    ) {
-      case "critical":
-        return "alert-critical";
+  /* =========================
+     AUTH
+  ========================= */
 
-      case "warning":
-        return "alert-warning";
-
-      case "info":
-        return "alert-info";
-
-      default:
-        return "alert-info";
-    }
-  }
-
-  function getAlertIcon(severity) {
-    switch (
-      String(severity || "").toLowerCase()
-    ) {
-      case "critical":
-        return "🔴";
-
-      case "warning":
-        return "🟠";
-
-      case "info":
-        return "🔵";
-
-      default:
-        return "🔵";
-    }
-  }
-
-  function renderAlertsPage() {
-    return (
-      <>
-        <section className="page-heading-row">
-          <div>
-            <p className="eyebrow">
-              CLOUD OPERATIONS
-            </p>
-
-            <h2>
-              Alerts & Notifications
-            </h2>
-
-            <p>
-              Monitor important infrastructure,
-              deployment and system events.
-            </p>
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">
-                ALERT CENTER
-              </p>
-
-              <h3>
-                System Alerts
-              </h3>
-
-              <span className="panel-count">
-                {unreadAlertCount} unread
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={loadAlerts}
-                disabled={alertsLoading}
-              >
-                {alertsLoading
-                  ? "Loading..."
-                  : "↻ Refresh Alerts"}
-              </button>
-
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={markAllAlertsRead}
-                disabled={
-                  alertsLoading ||
-                  unreadAlertCount === 0
-                }
-              >
-                ✓ Mark All Read
-              </button>
-            </div>
-          </div>
-
-          {alertsLoading ? (
-            <div
-              className="loading-state"
-              style={{
-                padding: "40px 12px",
-              }}
-            >
-              Loading alerts...
-            </div>
-          ) : alerts.length === 0 ? (
-            <div
-              className="empty-state"
-              style={{
-                padding: "50px 20px",
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "42px",
-                  marginBottom: "12px",
-                }}
-              >
-                🔔
-              </div>
-
-              <strong>
-                No alerts
-              </strong>
-
-              <p>
-                Your CloudOps Automator system
-                currently has no alerts.
-              </p>
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-                marginTop: "20px",
-              }}
-            >
-              {alerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className={`alert-card ${
-                    alert.is_read
-                      ? "alert-card-read"
-                      : "alert-card-unread"
-                  }`}
-                  style={{
-                    border:
-                      "1px solid var(--border-color, #e5e7eb)",
-                    borderRadius: "12px",
-                    padding: "16px",
-                    background:
-                      alert.is_read
-                        ? "var(--card-bg, #ffffff)"
-                        : "var(--surface-bg, #f8fafc)",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent:
-                      "space-between",
-                    gap: "16px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "14px",
-                      minWidth: 0,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "20px",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {getAlertIcon(
-                        alert.severity
-                      )}
-                    </div>
-
-                    <div
-                      style={{
-                        minWidth: 0,
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <strong>
-                          {alert.title}
-                        </strong>
-
-                        <span
-                          className={`alert-severity ${getAlertSeverityClass(
-                            alert.severity
-                          )}`}
-                          style={{
-                            fontSize: "11px",
-                            fontWeight: "700",
-                            textTransform:
-                              "uppercase",
-                            padding:
-                              "4px 8px",
-                            borderRadius:
-                              "999px",
-                          }}
-                        >
-                          {alert.severity ||
-                            "info"}
-                        </span>
-
-                        {!alert.is_read && (
-                          <span
-                            style={{
-                              width: "7px",
-                              height: "7px",
-                              borderRadius:
-                                "50%",
-                              background:
-                                "#2563eb",
-                              display:
-                                "inline-block",
-                            }}
-                            title="Unread"
-                          />
-                        )}
-                      </div>
-
-                      <p
-                        style={{
-                          margin:
-                            "8px 0 10px",
-                          lineHeight:
-                            "1.5",
-                        }}
-                      >
-                        {alert.message}
-                      </p>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "14px",
-                          flexWrap: "wrap",
-                          fontSize: "12px",
-                          opacity: 0.7,
-                        }}
-                      >
-                        {alert.server_name && (
-                          <span>
-                            Server:{" "}
-                            <strong>
-                              {
-                                alert.server_name
-                              }
-                            </strong>
-                          </span>
-                        )}
-
-                        {alert.ec2_instance_id && (
-                          <span>
-                            EC2:{" "}
-                            <strong>
-                              {
-                                alert.ec2_instance_id
-                              }
-                            </strong>
-                          </span>
-                        )}
-
-                        <span>
-                          {formatDate(
-                            alert.created_at
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {!alert.is_read && (
-                    <button
-                      className="details-button"
-                      type="button"
-                      onClick={() =>
-                        markAlertRead(
-                          alert.id
-                        )
-                      }
-                    >
-                      ✓ Mark Read
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </>
-    );
-  }
-
-  // ============================================================
-  // LOGIN
-  // ============================================================
-
-  async function handleLogin(event) {
+  async function login(event) {
     event.preventDefault();
 
-    setLoading(true);
     setError("");
+    setMessage("");
+    setLoading(true);
 
     try {
       const response = await fetch(
@@ -624,10 +625,7 @@ function App() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            username: authForm.username,
-            password: authForm.password,
-          }),
+          body: JSON.stringify(loginForm),
         }
       );
 
@@ -635,10 +633,10 @@ function App() {
 
       if (!response.ok) {
         throw new Error(
-          result.detail ||
-            result.message ||
-            result.error ||
-            "Login failed."
+          result?.detail ||
+            result?.message ||
+            result?.error ||
+            "Invalid username or password."
         );
       }
 
@@ -651,35 +649,27 @@ function App() {
         );
       }
 
-      localStorage.setItem(
-        "access_token",
-        accessToken
-      );
-
+      localStorage.setItem(TOKEN_KEY, accessToken);
       setToken(accessToken);
+      setPage("dashboard");
 
-      setAuthForm({
+      setLoginForm({
         username: "",
         password: "",
-        email: "",
       });
     } catch (err) {
-      console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  // ============================================================
-  // REGISTER
-  // ============================================================
-
-  async function handleRegister(event) {
+  async function register(event) {
     event.preventDefault();
 
-    setLoading(true);
     setError("");
+    setMessage("");
+    setLoading(true);
 
     try {
       const response = await fetch(
@@ -689,11 +679,7 @@ function App() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            username: authForm.username,
-            password: authForm.password,
-            email: authForm.email,
-          }),
+          body: JSON.stringify(registerForm),
         }
       );
 
@@ -701,101 +687,91 @@ function App() {
 
       if (!response.ok) {
         throw new Error(
-          data.detail ||
-            data.message ||
-            data.error ||
+          data?.detail ||
+            data?.message ||
+            data?.error ||
             "Registration failed."
         );
       }
 
-      setAuthMode("login");
-
-      setError(
-        "Registration successful. Please log in."
+      setMessage(
+        "Account created successfully. You can now sign in."
       );
 
-      setAuthForm({
-        username: "",
+      setAuthMode("login");
+
+      setLoginForm({
+        username: registerForm.username,
         password: "",
+      });
+
+      setRegisterForm({
+        username: "",
         email: "",
+        password: "",
       });
     } catch (err) {
-      console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  // ============================================================
-  // LOGOUT
-  // ============================================================
-
   function logout() {
-    localStorage.removeItem("access_token");
+    localStorage.removeItem(TOKEN_KEY);
 
     setToken(null);
     setServers([]);
-    setDashboard(null);
     setDeployments([]);
     setAlerts([]);
-    setUnreadAlertCount(0);
-    setSelectedDeployment(null);
-    setSelectedMonitoringServer(null);
-    setMonitoring({});
+    setDashboard(null);
+    setMonitoring(null);
     setPage("dashboard");
   }
 
-  // ============================================================
-  // EC2 START / STOP
-  // ============================================================
+  /* =========================
+     EC2
+  ========================= */
 
   async function startServer(id) {
-    try {
-      setError("");
+    setError("");
+    setMessage("");
 
+    try {
       await apiFetch(`/servers/${id}/start/`, {
         method: "POST",
       });
 
+      setMessage("EC2 instance start request sent.");
+
       await loadAllData();
-      await loadAlerts();
     } catch (err) {
-      console.error(err);
       setError(err.message);
     }
   }
 
   async function stopServer(id) {
-    try {
-      setError("");
+    setError("");
+    setMessage("");
 
+    try {
       await apiFetch(`/servers/${id}/stop/`, {
         method: "POST",
       });
 
+      setMessage("EC2 instance stop request sent.");
+
       await loadAllData();
       await loadAlerts();
     } catch (err) {
-      console.error(err);
       setError(err.message);
     }
   }
 
-  // ============================================================
-  // EC2 CLOUDWATCH MONITORING
-  // ============================================================
-
   async function loadMonitoring(instanceId) {
-    if (!instanceId) {
-      return;
-    }
+    if (!instanceId) return;
 
-    setMonitoringLoading((previous) => ({
-      ...previous,
-      [instanceId]: true,
-    }));
-
+    setMonitoringLoading(true);
     setError("");
 
     try {
@@ -803,2410 +779,2236 @@ function App() {
         `/monitoring/${instanceId}/`
       );
 
-      setMonitoring((previous) => ({
-        ...previous,
-        [instanceId]: data,
-      }));
-
-      setSelectedMonitoringServer(instanceId);
+      setMonitoring(data);
+      setPage("monitoring");
     } catch (err) {
-      console.error(err);
       setError(err.message);
     } finally {
-      setMonitoringLoading((previous) => ({
-        ...previous,
-        [instanceId]: false,
-      }));
+      setMonitoringLoading(false);
     }
   }
 
-  function formatMetricValue(metricName, value) {
-    if (value === null || value === undefined) {
-      return "No data";
+  /* =========================
+     ALERTS
+  ========================= */
+
+  async function markAlertRead(id) {
+    try {
+      await apiFetch(`/alerts/${id}/read/`, {
+        method: "PATCH",
+      });
+
+      await loadAlerts();
+    } catch (err) {
+      setError(err.message);
     }
-
-    const number = Number(value);
-
-    if (Number.isNaN(number)) {
-      return String(value);
-    }
-
-    if (metricName === "CPUUtilization") {
-      return `${number.toFixed(2)}%`;
-    }
-
-    if (
-      metricName === "NetworkIn" ||
-      metricName === "NetworkOut"
-    ) {
-      if (number >= 1024 * 1024 * 1024) {
-        return `${(
-          number /
-          (1024 * 1024 * 1024)
-        ).toFixed(2)} GB`;
-      }
-
-      if (number >= 1024 * 1024) {
-        return `${(
-          number /
-          (1024 * 1024)
-        ).toFixed(2)} MB`;
-      }
-
-      if (number >= 1024) {
-        return `${(
-          number / 1024
-        ).toFixed(2)} KB`;
-      }
-
-      return `${number.toFixed(0)} B`;
-    }
-
-    return number.toFixed(2);
   }
 
-  function getMonitoringMetric(
-    instanceId,
-    metricName
-  ) {
-    const data = monitoring[instanceId];
-
-    return data?.metrics?.[metricName] || null;
-  }
-
-  function getMonitoringTimestamp(instanceId) {
-    const data = monitoring[instanceId];
-
-    if (!data?.metrics) {
-      return null;
-    }
-
-    const timestamps = Object.values(
-      data.metrics
-    )
-      .filter(
-        (metric) =>
-          metric &&
-          metric.timestamp
-      )
-      .map(
-        (metric) =>
-          new Date(metric.timestamp)
+  async function markAllAlertsRead() {
+    try {
+      const unread = alerts.filter(
+        (alert) => !alert.is_read
       );
 
-    if (timestamps.length === 0) {
-      return null;
-    }
+      for (const alert of unread) {
+        await apiFetch(`/alerts/${alert.id}/read/`, {
+          method: "PATCH",
+        });
+      }
 
-    return new Date(
-      Math.max(
-        ...timestamps.map((date) =>
-          date.getTime()
-        )
-      )
-    );
+      await loadAlerts();
+      setMessage("All alerts marked as read.");
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
-  function renderMonitoringPanel(instanceId) {
-    const server = servers.find(
-      (item) => item.id === instanceId
-    );
-
-    const data = monitoring[instanceId];
-
-    const isLoading =
-      monitoringLoading[instanceId];
-
-    const cpu = getMonitoringMetric(
-      instanceId,
-      "CPUUtilization"
-    );
-
-    const networkIn = getMonitoringMetric(
-      instanceId,
-      "NetworkIn"
-    );
-
-    const networkOut = getMonitoringMetric(
-      instanceId,
-      "NetworkOut"
-    );
-
-    const ebsRead = getMonitoringMetric(
-      instanceId,
-      "EBSReadOps"
-    );
-
-    const ebsWrite = getMonitoringMetric(
-      instanceId,
-      "EBSWriteOps"
-    );
-
-    const timestamp =
-      getMonitoringTimestamp(instanceId);
-
-    if (!server) {
-      return null;
-    }
-
-    return (
-      <section
-        className="panel"
-        style={{ marginTop: "24px" }}
-      >
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">
-              AMAZON CLOUDWATCH
-            </p>
-
-            <h3>
-              EC2 Monitoring
-            </h3>
-
-            <span className="panel-count">
-              {server.name} ·{" "}
-              {server.id}
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() =>
-                loadMonitoring(
-                  instanceId
-                )
-              }
-              disabled={isLoading}
-            >
-              {isLoading
-                ? "Loading..."
-                : "↻ Refresh Metrics"}
-            </button>
-
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() =>
-                setSelectedMonitoringServer(
-                  null
-                )
-              }
-            >
-              Close
-            </button>
-          </div>
-        </div>
-
-        {!data && !isLoading ? (
-          <div
-            className="empty-state"
-            style={{
-              padding: "32px 12px",
-            }}
-          >
-            <strong>
-              Monitoring data not loaded
-            </strong>
-
-            <p>
-              Click "Refresh Metrics" to
-              retrieve CloudWatch data.
-            </p>
-          </div>
-        ) : isLoading ? (
-          <div
-            className="loading-state"
-            style={{
-              padding: "32px 12px",
-            }}
-          >
-            Loading CloudWatch metrics...
-          </div>
-        ) : (
-          <>
-            <div
-              className="stats-grid"
-              style={{
-                marginTop: "20px",
-              }}
-            >
-              <div className="stat-card">
-                <div className="stat-card-top">
-                  <span>
-                    CPU Utilization
-                  </span>
-
-                  <span className="stat-icon blue">
-                    %
-                  </span>
-                </div>
-
-                <strong>
-                  {formatMetricValue(
-                    "CPUUtilization",
-                    cpu?.value
-                  )}
-                </strong>
-
-                <small>
-                  5-minute average
-                </small>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-card-top">
-                  <span>
-                    Network In
-                  </span>
-
-                  <span className="stat-icon green">
-                    ↓
-                  </span>
-                </div>
-
-                <strong>
-                  {formatMetricValue(
-                    "NetworkIn",
-                    networkIn?.value
-                  )}
-                </strong>
-
-                <small>
-                  Average datapoint
-                </small>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-card-top">
-                  <span>
-                    Network Out
-                  </span>
-
-                  <span className="stat-icon purple">
-                    ↑
-                  </span>
-                </div>
-
-                <strong>
-                  {formatMetricValue(
-                    "NetworkOut",
-                    networkOut?.value
-                  )}
-                </strong>
-
-                <small>
-                  Average datapoint
-                </small>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-card-top">
-                  <span>
-                    EBS Read Ops
-                  </span>
-
-                  <span className="stat-icon orange">
-                    R
-                  </span>
-                </div>
-
-                <strong>
-                  {formatMetricValue(
-                    "EBSReadOps",
-                    ebsRead?.value
-                  )}
-                </strong>
-
-                <small>
-                  Average operations
-                </small>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-card-top">
-                  <span>
-                    EBS Write Ops
-                  </span>
-
-                  <span className="stat-icon blue">
-                    W
-                  </span>
-                </div>
-
-                <strong>
-                  {formatMetricValue(
-                    "EBSWriteOps",
-                    ebsWrite?.value
-                  )}
-                </strong>
-
-                <small>
-                  Average operations
-                </small>
-              </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: "20px",
-                padding: "14px 16px",
-                borderRadius: "10px",
-                border:
-                  "1px solid var(--border-color, #e5e7eb)",
-                fontSize: "13px",
-                display: "flex",
-                justifyContent:
-                  "space-between",
-                gap: "12px",
-                flexWrap: "wrap",
-              }}
-            >
-              <span>
-                <strong>
-                  Region:
-                </strong>{" "}
-                {data?.region ||
-                  "us-east-1"}
-              </span>
-
-              <span>
-                <strong>
-                  Latest datapoint:
-                </strong>{" "}
-                {timestamp
-                  ? formatDate(
-                      timestamp
-                    )
-                  : "No timestamp available"}
-              </span>
-            </div>
-          </>
-        )}
-      </section>
-    );
-  }
-
-  // ============================================================
-  // DEPLOYMENTS
-  // ============================================================
+  /* =========================
+     DEPLOYMENTS
+  ========================= */
 
   async function createDeployment(event) {
     event.preventDefault();
 
-    if (
-      !deploymentForm.application ||
-      !deploymentForm.version
-    ) {
-      setError(
-        "Application and version are required."
-      );
-      return;
-    }
-
-    setLoading(true);
     setError("");
+    setMessage("");
 
     try {
-      await apiFetch("/deployments/", {
+      const data = await apiFetch("/deployments/", {
         method: "POST",
         body: JSON.stringify(deploymentForm),
       });
 
+      setDeployments((current) => [data, ...current]);
+      setShowDeploymentForm(false);
+
       setDeploymentForm({
-        application: "",
-        version: "",
+        application: "CloudOps Automator",
+        version: "v1.0",
         server_name: "",
         ec2_instance_id: "",
       });
 
-      await loadAllData();
-      await loadAlerts();
+      setMessage("Deployment created and queued.");
 
-      setPage("deployments");
+      await loadAllData();
     } catch (err) {
-      console.error(err);
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
   }
 
   async function deleteDeployment(id) {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this deployment?"
-    );
-
-    if (!confirmed) {
+    if (
+      !window.confirm(
+        "Delete this deployment record?"
+      )
+    ) {
       return;
     }
 
     try {
-      setError("");
-
       await apiFetch(`/deployments/${id}/`, {
         method: "DELETE",
       });
 
-      if (selectedDeployment?.id === id) {
-        setSelectedDeployment(null);
-      }
+      setDeployments((current) =>
+        current.filter(
+          (deployment) => deployment.id !== id
+        )
+      );
 
-      await loadAllData();
+      setSelectedDeployment(null);
+      setDeploymentLogs("");
+
+      setMessage("Deployment deleted.");
     } catch (err) {
-      console.error(err);
       setError(err.message);
     }
   }
 
   async function viewDeploymentDetails(id) {
-    setDeploymentDetailsLoading(true);
-    setError("");
-
     try {
       const data = await apiFetch(
         `/deployments/${id}/`
       );
 
       setSelectedDeployment(data);
+      setDeploymentLogs(data?.logs || "");
     } catch (err) {
-      console.error(err);
       setError(err.message);
-    } finally {
-      setDeploymentDetailsLoading(false);
     }
   }
 
-  // ============================================================
-  // HELPERS
-  // ============================================================
+  /* =========================
+     NAVIGATION
+  ========================= */
 
-  function formatDate(value) {
-    if (!value) {
-      return "—";
-    }
-
-    try {
-      return new Date(value).toLocaleString();
-    } catch {
-      return value;
-    }
+  function navigate(nextPage) {
+    setPage(nextPage);
+    setMobileMenu(false);
+    setError("");
+    setMessage("");
   }
 
-  function getStatusClass(status) {
-    switch (
-      String(status || "").toLowerCase()
-    ) {
-      case "running":
-        return "status-running";
+  /* =========================
+     DATA
+  ========================= */
 
-      case "successful":
-      case "running-success":
-        return "status-success";
+  const unreadAlerts = alerts.filter(
+    (alert) => !alert.is_read
+  ).length;
 
-      case "failed":
-        return "status-failed";
+  const filteredServers = useMemo(() => {
+    const value = search.trim().toLowerCase();
 
-      case "stopped":
-        return "status-stopped";
+    if (!value) return servers;
 
-      case "pending":
-        return "status-pending";
+    return servers.filter((server) => {
+      const text = [
+        server?.name,
+        server?.status,
+        server?.state,
+        server?.ip_address,
+        server?.public_ip,
+        server?.instance_type,
+        server?.server_type,
+        server?.id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
-      default:
-        return "status-default";
-    }
-  }
+      return text.includes(value);
+    });
+  }, [servers, search]);
 
-  function getServerStatus(server) {
-    return String(
-      server?.status ||
-        server?.state ||
-        ""
-    ).toLowerCase();
-  }
+  const filteredDeployments = useMemo(() => {
+    const value =
+      deploymentSearch.trim().toLowerCase();
 
-  const filteredServers = servers.filter((server) => {
-    const search = searchServer.toLowerCase();
-
-    return (
-      String(server.name || "")
-        .toLowerCase()
-        .includes(search) ||
-      String(
-        server.ip_address ||
-          server.public_ip ||
-          ""
-      )
-        .toLowerCase()
-        .includes(search) ||
-      String(
-        server.server_type ||
-          server.type ||
-          ""
-      )
-        .toLowerCase()
-        .includes(search) ||
-      String(
-        server.status ||
-          server.state ||
-          ""
-      )
-        .toLowerCase()
-        .includes(search)
-    );
-  });
-
-  const filteredDeployments = deployments.filter(
-    (deployment) => {
-      const search =
-        searchDeployment.toLowerCase();
-
-      const status =
-        String(
-          deployment.status || ""
-        ).toLowerCase();
-
+    return deployments.filter((deployment) => {
       const matchesSearch =
-        String(
-          deployment.application || ""
-        )
+        !value ||
+        [
+          deployment?.application,
+          deployment?.version,
+          deployment?.server_name,
+          deployment?.ec2_instance_id,
+          deployment?.status,
+        ]
+          .filter(Boolean)
+          .join(" ")
           .toLowerCase()
-          .includes(search) ||
-        String(
-          deployment.version || ""
-        )
-          .toLowerCase()
-          .includes(search) ||
-        String(
-          deployment.server_name || ""
-        )
-          .toLowerCase()
-          .includes(search) ||
-        status.includes(search);
+          .includes(value);
 
-      const matchesStatus =
-        deploymentStatusFilter === "all" ||
-        status === deploymentStatusFilter;
+      const matchesFilter =
+        deploymentFilter === "all" ||
+        normalizeStatus(deployment?.status) ===
+          deploymentFilter;
 
-      return (
-        matchesSearch &&
-        matchesStatus
-      );
-    }
-  );
+      return matchesSearch && matchesFilter;
+    });
+  }, [
+    deployments,
+    deploymentSearch,
+    deploymentFilter,
+  ]);
 
-  const totalServers = servers.length;
+  const stats = useMemo(() => {
+    const running = servers.filter(
+      (server) =>
+        getServerStatus(server) === "running"
+    ).length;
 
-  const runningServers = servers.filter(
-    (server) =>
-      getServerStatus(server) === "running"
-  ).length;
+    const stopped = servers.filter(
+      (server) =>
+        getServerStatus(server) === "stopped"
+    ).length;
 
-  const stoppedServers = servers.filter(
-    (server) =>
-      getServerStatus(server) === "stopped"
-  ).length;
-
-  const totalDeployments = deployments.length;
-
-  const successfulDeployments =
-    deployments.filter(
+    const successful = deployments.filter(
       (deployment) =>
-        String(deployment.status).toLowerCase() ===
+        normalizeStatus(deployment.status) ===
         "successful"
     ).length;
 
-  const failedDeployments =
-    deployments.filter(
+    const failed = deployments.filter(
       (deployment) =>
-        String(deployment.status).toLowerCase() ===
+        normalizeStatus(deployment.status) ===
         "failed"
     ).length;
 
-  // ============================================================
-  // AUTH SCREEN
-  // ============================================================
+    return {
+      totalServers: servers.length,
+      running,
+      stopped,
+      deployments: deployments.length,
+      successful,
+      failed,
+    };
+  }, [servers, deployments]);
+
+  /* =========================
+     AUTH SCREEN
+  ========================= */
 
   if (!token) {
     return (
       <div className="auth-page">
-        <div className="auth-container">
-          <div className="auth-brand">
-            <div className="brand-mark">
-              ☁
-            </div>
-
-            <div>
-              <h1>CloudOps Automator</h1>
-
-              <p>
-                AWS & DevOps Management Platform
-              </p>
-            </div>
+        <section className="auth-info">
+          <div className="auth-eyebrow">
+            CLOUD OPERATIONS
           </div>
 
+          <h1 className="auth-title">
+            CloudOps
+            <br />
+            Automator
+          </h1>
+
+          <p className="auth-description">
+            AWS & DevOps Management Platform.
+            <br />
+            Monitor infrastructure, manage EC2
+            resources and organize deployments from
+            one centralized workspace.
+          </p>
+
+          <div className="auth-features">
+            <div className="auth-feature">
+              <div className="auth-feature-title">
+                EC2 infrastructure management
+              </div>
+              <div className="auth-feature-text">
+                View and control AWS compute resources.
+              </div>
+            </div>
+
+            <div className="auth-feature">
+              <div className="auth-feature-title">
+                CloudWatch monitoring
+              </div>
+              <div className="auth-feature-text">
+                Monitor infrastructure performance.
+              </div>
+            </div>
+
+            <div className="auth-feature">
+              <div className="auth-feature-title">
+                Automated deployments
+              </div>
+              <div className="auth-feature-text">
+                Manage application releases.
+              </div>
+            </div>
+
+            <div className="auth-feature">
+              <div className="auth-feature-title">
+                Infrastructure alerts
+              </div>
+              <div className="auth-feature-text">
+                Stay informed about cloud events.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="auth-panel">
           <div className="auth-card">
             <div className="auth-card-header">
-              <h2>
+              <h2 className="auth-card-title">
                 {authMode === "login"
-                  ? "Welcome back"
-                  : "Create your account"}
+                  ? "Sign in"
+                  : "Create account"}
               </h2>
 
-              <p>
+              <p className="auth-card-subtitle">
                 {authMode === "login"
-                  ? "Sign in to manage your cloud infrastructure."
+                  ? "Sign in to your secure cloud workspace."
                   : "Create an account to access CloudOps Automator."}
               </p>
             </div>
 
             {error && (
-              <div className="alert-message">
+              <div className="form-error">
                 {error}
               </div>
             )}
 
-            <form
-              onSubmit={
-                authMode === "login"
-                  ? handleLogin
-                  : handleRegister
-              }
-              className="auth-form"
-            >
-              <label>
-                Username
+            {message && (
+              <div className="form-success">
+                {message}
+              </div>
+            )}
 
-                <input
-                  type="text"
-                  value={authForm.username}
-                  onChange={(event) =>
-                    setAuthForm({
-                      ...authForm,
-                      username:
-                        event.target.value,
-                    })
-                  }
-                  placeholder="Enter username"
-                  required
-                />
-              </label>
-
-              {authMode === "register" && (
-                <label>
-                  Email
+            {authMode === "login" ? (
+              <form
+                className="auth-form"
+                onSubmit={login}
+              >
+                <div className="form-group">
+                  <label className="form-label">
+                    Username
+                  </label>
 
                   <input
-                    type="email"
-                    value={authForm.email}
+                    className="form-input"
+                    type="text"
+                    value={loginForm.username}
                     onChange={(event) =>
-                      setAuthForm({
-                        ...authForm,
-                        email:
+                      setLoginForm({
+                        ...loginForm,
+                        username:
                           event.target.value,
                       })
                     }
-                    placeholder="Enter email"
+                    placeholder="Enter username"
+                    autoComplete="username"
                     required
                   />
-                </label>
-              )}
+                </div>
 
-              <label>
-                Password
+                <div className="form-group">
+                  <label className="form-label">
+                    Password
+                  </label>
 
-                <input
-                  type="password"
-                  value={authForm.password}
-                  onChange={(event) =>
-                    setAuthForm({
-                      ...authForm,
-                      password:
-                        event.target.value,
-                    })
-                  }
-                  placeholder="Enter password"
-                  required
-                />
-              </label>
+                  <input
+                    className="form-input"
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(event) =>
+                      setLoginForm({
+                        ...loginForm,
+                        password:
+                          event.target.value,
+                      })
+                    }
+                    placeholder="Enter password"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
 
-              <button
-                className="primary-button auth-submit"
-                type="submit"
-                disabled={loading}
+                <button
+                  className="btn btn-primary auth-submit"
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading
+                    ? "Signing in..."
+                    : "Sign in"}
+                </button>
+
+                <div className="auth-switch">
+                  Don't have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("register");
+                      setError("");
+                      setMessage("");
+                    }}
+                  >
+                    Create account
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form
+                className="auth-form"
+                onSubmit={register}
               >
-                {loading
-                  ? "Please wait..."
-                  : authMode === "login"
-                  ? "Sign In"
-                  : "Create Account"}
-              </button>
-            </form>
+                <div className="form-group">
+                  <label className="form-label">
+                    Username
+                  </label>
 
+                  <input
+                    className="form-input"
+                    type="text"
+                    value={registerForm.username}
+                    onChange={(event) =>
+                      setRegisterForm({
+                        ...registerForm,
+                        username:
+                          event.target.value,
+                      })
+                    }
+                    placeholder="Choose username"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Email
+                  </label>
+
+                  <input
+                    className="form-input"
+                    type="email"
+                    value={registerForm.email}
+                    onChange={(event) =>
+                      setRegisterForm({
+                        ...registerForm,
+                        email: event.target.value,
+                      })
+                    }
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Password
+                  </label>
+
+                  <input
+                    className="form-input"
+                    type="password"
+                    value={registerForm.password}
+                    onChange={(event) =>
+                      setRegisterForm({
+                        ...registerForm,
+                        password:
+                          event.target.value,
+                      })
+                    }
+                    placeholder="Create password"
+                    required
+                  />
+                </div>
+
+                <button
+                  className="btn btn-primary auth-submit"
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading
+                    ? "Creating..."
+                    : "Create account"}
+                </button>
+
+                <div className="auth-switch">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("login");
+                      setError("");
+                      setMessage("");
+                    }}
+                  >
+                    Sign in
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="auth-security">
+              <Icon name="shield" size={15} />
+              Secure cloud workspace
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  /* =========================
+     SIDEBAR
+  ========================= */
+
+  function Sidebar() {
+    const items = [
+      {
+        id: "dashboard",
+        label: "Dashboard",
+        icon: "dashboard",
+      },
+      {
+        id: "servers",
+        label: "EC2 Instances",
+        icon: "server",
+      },
+      {
+        id: "monitoring",
+        label: "Monitoring",
+        icon: "monitor",
+      },
+      {
+        id: "deployments",
+        label: "Deployments",
+        icon: "deployment",
+      },
+      {
+        id: "alerts",
+        label: "Alerts",
+        icon: "alert",
+      },
+    ];
+
+    return (
+      <aside
+        className={`sidebar ${
+          mobileMenu ? "open" : ""
+        }`}
+      >
+        <div className="sidebar-header">
+          <div className="logo-mark">
+            <Icon name="cloud" size={19} />
+          </div>
+
+          <div>
+            <div className="logo-text">
+              CloudOps Automator
+            </div>
+            <div className="logo-subtitle">
+              Cloud Management
+            </div>
+          </div>
+        </div>
+
+        <nav className="sidebar-nav">
+          <div className="nav-section-label">
+            Workspace
+          </div>
+
+          {items.map((item) => (
             <button
-              className="auth-switch"
               type="button"
-              onClick={() => {
-                setError("");
+              key={item.id}
+              className={`nav-item ${
+                page === item.id ? "active" : ""
+              }`}
+              onClick={() => navigate(item.id)}
+            >
+              <span className="nav-icon">
+                <Icon
+                  name={item.icon}
+                  size={17}
+                />
+              </span>
 
-                setAuthMode(
-                  authMode === "login"
-                    ? "register"
-                    : "login"
-                );
+              <span>{item.label}</span>
+
+              {item.id === "alerts" &&
+                unreadAlerts > 0 && (
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      minWidth: 20,
+                      padding: "2px 6px",
+                      borderRadius: 999,
+                      background: "#2563eb",
+                      color: "#fff",
+                      fontSize: 10,
+                      textAlign: "center",
+                    }}
+                  >
+                    {unreadAlerts}
+                  </span>
+                )}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-status">
+            <span className="status-dot" />
+            AWS infrastructure connected
+          </div>
+
+          <button
+            type="button"
+            className="nav-item"
+            style={{ marginTop: 8 }}
+            onClick={logout}
+          >
+            <span className="nav-icon">
+              <Icon name="logout" size={17} />
+            </span>
+            Logout
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
+  /* =========================
+     TOPBAR
+  ========================= */
+
+  function Topbar() {
+    const titles = {
+      dashboard: [
+        "Dashboard",
+        "Infrastructure overview",
+      ],
+      servers: [
+        "EC2 Instances",
+        "Manage compute resources",
+      ],
+      monitoring: [
+        "Monitoring",
+        "CloudWatch infrastructure metrics",
+      ],
+      deployments: [
+        "Deployments",
+        "Manage application releases",
+      ],
+      alerts: [
+        "Alerts",
+        "Infrastructure notifications",
+      ],
+    };
+
+    const current = titles[page] || titles.dashboard;
+
+    return (
+      <header className="topbar">
+        <div className="topbar-left">
+          <button
+            type="button"
+            className="btn btn-ghost mobile-menu-button"
+            onClick={() => setMobileMenu(true)}
+          >
+            <Icon name="menu" size={20} />
+          </button>
+
+          <div>
+            <h2 className="page-title">
+              {current[0]}
+            </h2>
+
+            <p className="page-subtitle">
+              {current[1]}
+            </p>
+          </div>
+        </div>
+
+        <div className="topbar-right">
+          <div className="aws-status">
+            <span className="status-dot" />
+            AWS Connected
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={refreshData}
+            disabled={loading}
+          >
+            <Icon name="refresh" size={14} />
+            Refresh
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => navigate("alerts")}
+          >
+            <Icon name="alert" size={15} />
+            {unreadAlerts > 0
+              ? `${unreadAlerts} alerts`
+              : "Alerts"}
+          </button>
+        </div>
+      </header>
+    );
+  }
+
+  /* =========================
+     PAGE HEADER
+  ========================= */
+
+  function PageHeader({
+    eyebrow,
+    title,
+    description,
+    action,
+  }) {
+    return (
+      <div className="page-header">
+        <div>
+          {eyebrow && (
+            <div
+              style={{
+                marginBottom: 7,
+                color: "#60a5fa",
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: "0.1em",
               }}
             >
-              {authMode === "login"
-                ? "Don't have an account? Create one"
-                : "Already have an account? Sign in"}
+              {eyebrow}
+            </div>
+          )}
+
+          <h1>{title}</h1>
+
+          {description && <p>{description}</p>}
+        </div>
+
+        {action && (
+          <div className="page-actions">
+            {action}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* =========================
+     STAT CARD
+  ========================= */
+
+  function StatCard({
+    label,
+    value,
+    description,
+    icon,
+  }) {
+    return (
+      <div className="stat-card">
+        <div className="stat-card-top">
+          <span className="stat-label">
+            {label}
+          </span>
+
+          <span className="stat-icon">
+            <Icon name={icon} size={17} />
+          </span>
+        </div>
+
+        <div className="stat-value">{value}</div>
+
+        <div className="stat-description">
+          {description}
+        </div>
+      </div>
+    );
+  }
+
+  /* =========================
+     DASHBOARD
+  ========================= */
+
+  function renderDashboard() {
+    return (
+      <div className="content">
+        <PageHeader
+          eyebrow="CLOUD OPERATIONS"
+          title="Infrastructure at a glance."
+          description="Monitor your AWS infrastructure and manage deployments from one centralized workspace."
+          action={
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() =>
+                navigate("deployments")
+              }
+            >
+              <Icon name="plus" size={15} />
+              New Deployment
             </button>
+          }
+        />
+
+        {error && (
+          <div className="form-error" style={{ marginBottom: 16 }}>
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div
+            className="form-success"
+            style={{ marginBottom: 16 }}
+          >
+            {message}
+          </div>
+        )}
+
+        <div className="stats-grid">
+          <StatCard
+            label="Total Servers"
+            value={stats.totalServers}
+            description="EC2 infrastructure"
+            icon="server"
+          />
+
+          <StatCard
+            label="Running"
+            value={stats.running}
+            description="Currently active"
+            icon="activity"
+          />
+
+          <StatCard
+            label="Stopped"
+            value={stats.stopped}
+            description="Currently stopped"
+            icon="stop"
+          />
+
+          <StatCard
+            label="Deployments"
+            value={stats.deployments}
+            description="All deployments"
+            icon="deployment"
+          />
+        </div>
+
+        <div className="grid-2">
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <h2 className="panel-title">
+                  EC2 Instances
+                </h2>
+
+                <p className="panel-subtitle">
+                  AWS compute infrastructure
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() =>
+                  navigate("servers")
+                }
+              >
+                View all
+                <Icon name="arrow" size={13} />
+              </button>
+            </div>
+
+            {servers.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">
+                  <Icon name="server" size={20} />
+                </div>
+
+                <h3>No EC2 instances found</h3>
+
+                <p>
+                  Connect your AWS environment to
+                  view infrastructure.
+                </p>
+              </div>
+            ) : (
+              <div className="deployment-list">
+                {servers.slice(0, 5).map((server) => {
+                  const status =
+                    getServerStatus(server);
+
+                  return (
+                    <div
+                      className="deployment-item"
+                      key={server.id}
+                    >
+                      <div className="deployment-main">
+                        <div className="deployment-name">
+                          {server.name ||
+                            "Unnamed instance"}
+                        </div>
+
+                        <div className="deployment-meta">
+                          {getServerType(server)}
+                          {" • "}
+                          {getServerIp(server)}
+                        </div>
+                      </div>
+
+                      <StatusBadge
+                        status={status}
+                      />
+
+                      {status === "running" && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() =>
+                            loadMonitoring(
+                              getInstanceId(
+                                server
+                              )
+                            )
+                          }
+                        >
+                          Monitor
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <h2 className="panel-title">
+                  Deployment Overview
+                </h2>
+
+                <p className="panel-subtitle">
+                  CI/CD deployment health
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() =>
+                  navigate("deployments")
+                }
+              >
+                Details
+                <Icon name="arrow" size={13} />
+              </button>
+            </div>
+
+            <div className="panel-body">
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "1fr 1fr",
+                  gap: 12,
+                }}
+              >
+                <div className="metric-card">
+                  <div className="metric-label">
+                    Successful
+                  </div>
+
+                  <div
+                    className="metric-value"
+                    style={{
+                      color: "#22c55e",
+                    }}
+                  >
+                    {stats.successful}
+                  </div>
+                </div>
+
+                <div className="metric-card">
+                  <div className="metric-label">
+                    Failed
+                  </div>
+
+                  <div
+                    className="metric-value"
+                    style={{
+                      color: "#ef4444",
+                    }}
+                  >
+                    {stats.failed}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 20 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent:
+                      "space-between",
+                    marginBottom: 8,
+                    color: "#94a3b8",
+                    fontSize: 11,
+                  }}
+                >
+                  <span>
+                    Deployment health
+                  </span>
+
+                  <strong
+                    style={{
+                      color: "#f8fafc",
+                    }}
+                  >
+                    {stats.deployments
+                      ? Math.round(
+                          (stats.successful /
+                            stats.deployments) *
+                            100
+                        )
+                      : 0}
+                    %
+                  </strong>
+                </div>
+
+                <div className="progress-track">
+                  <div
+                    className="progress-bar"
+                    style={{
+                      width: `${
+                        stats.deployments
+                          ? (stats.successful /
+                              stats.deployments) *
+                            100
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {dashboard && (
+          <section
+            className="panel"
+            style={{ marginTop: 18 }}
+          >
+            <div className="panel-body">
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <div className="stat-icon">
+                  <Icon
+                    name="cloud"
+                    size={18}
+                  />
+                </div>
+
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 12,
+                    }}
+                  >
+                    AWS Infrastructure
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 3,
+                      color: "#94a3b8",
+                      fontSize: 11,
+                    }}
+                  >
+                    CloudOps Automator is connected
+                    to your AWS environment.
+                  </div>
+                </div>
+
+                <span
+                  className="badge badge-success"
+                  style={{
+                    marginLeft: "auto",
+                  }}
+                >
+                  <span className="badge-dot" />
+                  Online
+                </span>
+              </div>
+            </div>
+          </section>
+        )}
+      </div>
+    );
+  }
+
+  /* =========================
+     SERVERS
+  ========================= */
+
+  function renderServersPage() {
+    return (
+      <div className="content">
+        <PageHeader
+          eyebrow="COMPUTE"
+          title="EC2 Instances"
+          description="View and control your AWS compute infrastructure."
+        />
+
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              flex: 1,
+              maxWidth: 420,
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: 11,
+                top: 10,
+                color: "#64748b",
+              }}
+            >
+              <Icon name="search" size={16} />
+            </div>
+
+            <input
+              className="form-input"
+              style={{ paddingLeft: 36 }}
+              value={search}
+              onChange={(event) =>
+                setSearch(event.target.value)
+              }
+              placeholder="Search instances..."
+            />
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              color: "#64748b",
+              fontSize: 11,
+            }}
+          >
+            {filteredServers.length} instance
+            {filteredServers.length !== 1
+              ? "s"
+              : ""}
+          </div>
+        </div>
+
+        <section className="panel">
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Instance</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Public IP</th>
+                  <th>Instance ID</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredServers.length === 0 ? (
+                  <tr>
+                    <td colSpan="6">
+                      <div className="empty-state">
+                        <div className="empty-icon">
+                          <Icon
+                            name="server"
+                            size={20}
+                          />
+                        </div>
+                        <h3>
+                          No instances found
+                        </h3>
+                        <p>
+                          Try changing your search.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredServers.map((server) => {
+                    const status =
+                      getServerStatus(server);
+
+                    return (
+                      <tr key={server.id}>
+                        <td>
+                          <div className="instance-name">
+                            {server.name ||
+                              "Unnamed instance"}
+                          </div>
+
+                          <div className="instance-meta">
+                            AWS EC2
+                          </div>
+                        </td>
+
+                        <td>
+                          {getServerType(server)}
+                        </td>
+
+                        <td>
+                          <StatusBadge
+                            status={status}
+                          />
+                        </td>
+
+                        <td>
+                          {getServerIp(server)}
+                        </td>
+
+                        <td>
+                          <span
+                            style={{
+                              fontFamily:
+                                "monospace",
+                              color:
+                                "#64748b",
+                              fontSize: 11,
+                            }}
+                          >
+                            {server.id || "—"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 7,
+                            }}
+                          >
+                            {status ===
+                              "running" ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() =>
+                                    loadMonitoring(
+                                      getInstanceId(
+                                        server
+                                      )
+                                    )
+                                  }
+                                >
+                                  <Icon
+                                    name="monitor"
+                                    size={13}
+                                  />
+                                  Monitor
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-danger btn-sm"
+                                  onClick={() =>
+                                    stopServer(
+                                      server.id
+                                    )
+                                  }
+                                >
+                                  <Icon
+                                    name="stop"
+                                    size={13}
+                                  />
+                                  Stop
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-success btn-sm"
+                                onClick={() =>
+                                  startServer(
+                                    server.id
+                                  )
+                                }
+                              >
+                                <Icon
+                                  name="play"
+                                  size={13}
+                                />
+                                Start
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  /* =========================
+     MONITORING
+  ========================= */
+
+  function MetricCard({
+    title,
+    value,
+    unit,
+    icon,
+    timestamp,
+  }) {
+    const displayValue =
+      value === undefined ||
+      value === null
+        ? "—"
+        : typeof value === "number"
+        ? Number(value).toFixed(2)
+        : value;
+
+    return (
+      <div className="metric-card">
+        <div className="metric-label">
+          {title}
+        </div>
+
+        <div className="metric-value">
+          {displayValue}
+
+          {value !== undefined &&
+            value !== null && (
+              <small
+                style={{
+                  marginLeft: 5,
+                  color: "#64748b",
+                  fontSize: 10,
+                }}
+              >
+                {unit}
+              </small>
+            )}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            marginTop: 8,
+            color: "#64748b",
+            fontSize: 9,
+          }}
+        >
+          <Icon name="calendar" size={11} />
+          {timestamp
+            ? formatDate(timestamp)
+            : "No timestamp"}
+        </div>
+      </div>
+    );
+  }
+
+  function renderMonitoringPage() {
+    const metrics = monitoring?.metrics || {};
+
+    return (
+      <div className="content">
+        <PageHeader
+          eyebrow="OBSERVABILITY"
+          title="Infrastructure Monitoring"
+          description="Monitor CloudWatch metrics for your AWS infrastructure."
+          action={
+            monitoring && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() =>
+                  loadMonitoring(
+                    monitoring.instance_id ||
+                      monitoring.instanceId
+                  )
+                }
+              >
+                <Icon
+                  name="refresh"
+                  size={14}
+                />
+                Refresh metrics
+              </button>
+            )
+          }
+        />
+
+        {!monitoring &&
+          !monitoringLoading && (
+            <section className="panel">
+              <div className="empty-state">
+                <div className="empty-icon">
+                  <Icon
+                    name="monitor"
+                    size={22}
+                  />
+                </div>
+
+                <h3>
+                  Select an EC2 instance
+                </h3>
+
+                <p>
+                  Choose an instance from the EC2
+                  Instances page to view its
+                  CloudWatch metrics.
+                </p>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ marginTop: 15 }}
+                  onClick={() =>
+                    navigate("servers")
+                  }
+                >
+                  View EC2 Instances
+                </button>
+              </div>
+            </section>
+          )}
+
+        {monitoringLoading && (
+          <section className="panel">
+            <div className="empty-state">
+              <h3>
+                Loading CloudWatch metrics...
+              </h3>
+            </div>
+          </section>
+        )}
+
+        {monitoring &&
+          !monitoringLoading && (
+            <>
+              <section
+                className="panel"
+                style={{ marginBottom: 18 }}
+              >
+                <div className="panel-body">
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent:
+                        "space-between",
+                      alignItems: "center",
+                      gap: 20,
+                    }}
+                  >
+                    <div>
+                      <div className="stat-label">
+                        MONITORED INSTANCE
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 7,
+                          fontSize: 15,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {monitoring.name ||
+                          monitoring.instance_name ||
+                          monitoring.instance_id ||
+                          "EC2 Instance"}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="stat-label">
+                        REGION
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 7,
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {monitoring.region ||
+                          "AWS"}
+                      </div>
+                    </div>
+
+                    <StatusBadge status="running" />
+                  </div>
+                </div>
+              </section>
+
+              <div className="metric-grid">
+                <MetricCard
+                  title="CPU Utilization"
+                  value={
+                    metrics.CPUUtilization
+                      ?.value
+                  }
+                  unit="%"
+                  icon="cpu"
+                  timestamp={
+                    metrics.CPUUtilization
+                      ?.timestamp
+                  }
+                />
+
+                <MetricCard
+                  title="Network In"
+                  value={
+                    metrics.NetworkIn?.value
+                  }
+                  unit="bytes"
+                  icon="network"
+                  timestamp={
+                    metrics.NetworkIn?.timestamp
+                  }
+                />
+
+                <MetricCard
+                  title="Network Out"
+                  value={
+                    metrics.NetworkOut?.value
+                  }
+                  unit="bytes"
+                  icon="network"
+                  timestamp={
+                    metrics.NetworkOut
+                      ?.timestamp
+                  }
+                />
+
+                <MetricCard
+                  title="EBS Read Ops"
+                  value={
+                    metrics.EBSReadOps?.value
+                  }
+                  unit="ops"
+                  icon="database"
+                  timestamp={
+                    metrics.EBSReadOps
+                      ?.timestamp
+                  }
+                />
+
+                <MetricCard
+                  title="EBS Write Ops"
+                  value={
+                    metrics.EBSWriteOps?.value
+                  }
+                  unit="ops"
+                  icon="database"
+                  timestamp={
+                    metrics.EBSWriteOps
+                      ?.timestamp
+                  }
+                />
+              </div>
+            </>
+          )}
+      </div>
+    );
+  }
+
+  /* =========================
+     DEPLOYMENTS
+  ========================= */
+
+  function renderDeploymentsPage() {
+    return (
+      <div className="content">
+        <PageHeader
+          eyebrow="CI/CD"
+          title="Deployments"
+          description="Create, monitor and review application deployments."
+          action={
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() =>
+                setShowDeploymentForm(true)
+              }
+            >
+              <Icon name="plus" size={15} />
+              New Deployment
+            </button>
+          }
+        />
+
+        <div className="stats-grid">
+          <StatCard
+            label="Successful"
+            value={stats.successful}
+            description="Completed successfully"
+            icon="check"
+          />
+
+          <StatCard
+            label="Failed"
+            value={stats.failed}
+            description="Failed deployments"
+            icon="warning"
+          />
+
+          <StatCard
+            label="Total"
+            value={stats.deployments}
+            description="All deployments"
+            icon="deployment"
+          />
+
+          <StatCard
+            label="Health"
+            value={
+              stats.deployments
+                ? `${Math.round(
+                    (stats.successful /
+                      stats.deployments) *
+                      100
+                  )}%`
+                : "0%"
+            }
+            description="Deployment success rate"
+            icon="activity"
+          />
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            marginBottom: 16,
+          }}
+        >
+          <input
+            className="form-input"
+            style={{ maxWidth: 420 }}
+            value={deploymentSearch}
+            onChange={(event) =>
+              setDeploymentSearch(
+                event.target.value
+              )
+            }
+            placeholder="Search deployments..."
+          />
+
+          <select
+            className="form-select"
+            style={{ width: 160 }}
+            value={deploymentFilter}
+            onChange={(event) =>
+              setDeploymentFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              All statuses
+            </option>
+            <option value="pending">
+              Pending
+            </option>
+            <option value="running">
+              Running
+            </option>
+            <option value="successful">
+              Successful
+            </option>
+            <option value="failed">
+              Failed
+            </option>
+          </select>
+        </div>
+
+        <section className="panel">
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Application</th>
+                  <th>Version</th>
+                  <th>Server</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredDeployments.length ===
+                0 ? (
+                  <tr>
+                    <td colSpan="6">
+                      <div className="empty-state">
+                        <div className="empty-icon">
+                          <Icon
+                            name="deployment"
+                            size={20}
+                          />
+                        </div>
+
+                        <h3>
+                          No deployments found
+                        </h3>
+
+                        <p>
+                          Create your first
+                          deployment to get
+                          started.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDeployments.map(
+                    (deployment) => (
+                      <tr
+                        key={deployment.id}
+                      >
+                        <td>
+                          <div className="instance-name">
+                            {deployment.application ||
+                              "Application"}
+                          </div>
+
+                          <div className="instance-meta">
+                            Deployment #
+                            {deployment.id}
+                          </div>
+                        </td>
+
+                        <td>
+                          {deployment.version ||
+                            "—"}
+                        </td>
+
+                        <td>
+                          {deployment.server_name ||
+                            "—"}
+                        </td>
+
+                        <td>
+                          <StatusBadge
+                            status={
+                              deployment.status
+                            }
+                          />
+                        </td>
+
+                        <td>
+                          {formatDate(
+                            deployment.created_at
+                          )}
+                        </td>
+
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 7,
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() =>
+                                viewDeploymentDetails(
+                                  deployment.id
+                                )
+                              }
+                            >
+                              <Icon
+                                name="eye"
+                                size={13}
+                              />
+                              View
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-sm"
+                              onClick={() =>
+                                deleteDeployment(
+                                  deployment.id
+                                )
+                              }
+                            >
+                              <Icon
+                                name="trash"
+                                size={13}
+                              />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  /* =========================
+     ALERTS
+  ========================= */
+
+  function renderAlertsPage() {
+    return (
+      <div className="content">
+        <PageHeader
+          eyebrow="OPERATIONS"
+          title="Infrastructure Alerts"
+          description="Stay informed about deployments, servers and resource health."
+          action={
+            unreadAlerts > 0 && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={
+                  markAllAlertsRead
+                }
+              >
+                <Icon
+                  name="check"
+                  size={14}
+                />
+                Mark all read
+              </button>
+            )
+          }
+        />
+
+        <div className="stats-grid">
+          <StatCard
+            label="All Alerts"
+            value={alerts.length}
+            description="Total notifications"
+            icon="alert"
+          />
+
+          <StatCard
+            label="Unread"
+            value={unreadAlerts}
+            description="Require attention"
+            icon="warning"
+          />
+
+          <StatCard
+            label="Read"
+            value={
+              alerts.length - unreadAlerts
+            }
+            description="Reviewed alerts"
+            icon="check"
+          />
+
+          <StatCard
+            label="Status"
+            value={
+              unreadAlerts === 0
+                ? "Clear"
+                : "Attention"
+            }
+            description="Current alert state"
+            icon="activity"
+          />
+        </div>
+
+        <section className="panel">
+          {alerts.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">
+                <Icon
+                  name="check"
+                  size={21}
+                />
+              </div>
+
+              <h3>No alerts</h3>
+
+              <p>
+                Your infrastructure is currently
+                clear.
+              </p>
+            </div>
+          ) : (
+            <div className="deployment-list">
+              {alerts.map((alert) => (
+                <div
+                  className="deployment-item"
+                  key={alert.id}
+                  style={{
+                    background: alert.is_read
+                      ? "transparent"
+                      : "#172235",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      minWidth: 0,
+                      flex: 1,
+                    }}
+                  >
+                    <div className="stat-icon">
+                      <Icon
+                        name={getAlertIcon(
+                          alert.alert_type
+                        )}
+                        size={16}
+                      />
+                    </div>
+
+                    <div className="deployment-main">
+                      <div className="deployment-name">
+                        {alert.title}
+                      </div>
+
+                      <div
+                        className="deployment-meta"
+                        style={{
+                          whiteSpace:
+                            "normal",
+                        }}
+                      >
+                        {alert.message}
+                      </div>
+
+                      <div className="deployment-meta">
+                        {alert.server_name ||
+                          "Infrastructure"}
+                        {" • "}
+                        {formatDate(
+                          alert.created_at
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <StatusBadge
+                    status={
+                      alert.severity || "info"
+                    }
+                  />
+
+                  {!alert.is_read && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() =>
+                        markAlertRead(
+                          alert.id
+                        )
+                      }
+                    >
+                      <Icon
+                        name="check"
+                        size={13}
+                      />
+                      Read
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
+  /* =========================
+     DEPLOYMENT CREATE MODAL
+  ========================= */
+
+  function DeploymentDetailsModal() {
+    if (!selectedDeployment) return null;
+
+    return (
+      <div className="modal-backdrop">
+        <div
+          className="modal"
+          style={{ maxWidth: 760 }}
+        >
+          <div className="modal-header">
+            <div>
+              <h2 className="modal-title">
+                {selectedDeployment.application ||
+                  "Deployment details"}
+              </h2>
+
+              <p className="panel-subtitle">
+                Deployment #
+                {selectedDeployment.id}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setSelectedDeployment(null);
+                setDeploymentLogs("");
+              }}
+            >
+              <Icon
+                name="close"
+                size={16}
+              />
+            </button>
+          </div>
+
+          <div className="modal-body">
+            <div className="metric-grid">
+              <div className="metric-card">
+                <div className="metric-label">
+                  Version
+                </div>
+                <div
+                  className="metric-value"
+                  style={{ fontSize: 14 }}
+                >
+                  {selectedDeployment.version ||
+                    "—"}
+                </div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-label">
+                  Server
+                </div>
+                <div
+                  className="metric-value"
+                  style={{ fontSize: 14 }}
+                >
+                  {selectedDeployment.server_name ||
+                    "—"}
+                </div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-label">
+                  Status
+                </div>
+
+                <div style={{ marginTop: 10 }}>
+                  <StatusBadge
+                    status={
+                      selectedDeployment.status
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-label">
+                  Created
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 10,
+                    color: "#f8fafc",
+                    fontSize: 11,
+                  }}
+                >
+                  {formatDate(
+                    selectedDeployment.created_at
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 20 }}>
+              <div
+                className="metric-label"
+                style={{ marginBottom: 8 }}
+              >
+                DEPLOYMENT LOGS
+              </div>
+
+              <pre
+                style={{
+                  minHeight: 220,
+                  maxHeight: 400,
+                  overflow: "auto",
+                  margin: 0,
+                  padding: 15,
+                  border:
+                    "1px solid #334155",
+                  borderRadius: 8,
+                  background: "#0f172a",
+                  color: "#cbd5e1",
+                  fontFamily:
+                    "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  fontSize: 11,
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {deploymentLogs ||
+                  "No deployment logs available."}
+              </pre>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // ============================================================
-  // MAIN APPLICATION
-  // ============================================================
+  /* =========================
+     MAIN APP
+  ========================= */
 
   return (
     <div className="app-shell">
-      {mobileMenuOpen && (
+      {mobileMenu && (
         <div
           className="mobile-overlay"
           onClick={() =>
-            setMobileMenuOpen(false)
+            setMobileMenu(false)
           }
         />
       )}
 
-      <aside
-        className={`sidebar ${
-          mobileMenuOpen
-            ? "sidebar-open"
-            : ""
-        }`}
-      >
-        <div className="sidebar-brand">
-          <div className="brand-mark small">
-            ☁
-          </div>
-
-          <div>
-            <strong>CloudOps</strong>
-            <span>Automator</span>
-          </div>
-        </div>
-
-        <nav className="sidebar-nav">
-          <button
-            className={
-              page === "dashboard"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            onClick={() => {
-              setPage("dashboard");
-              setMobileMenuOpen(false);
-            }}
-          >
-            <span>▦</span>
-            Dashboard
-          </button>
-
-          <button
-            className={
-              page === "servers"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            onClick={() => {
-              setPage("servers");
-              setMobileMenuOpen(false);
-            }}
-          >
-            <span>▣</span>
-            EC2 Instances
-          </button>
-
-          <button
-            className={
-              page === "monitoring"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            onClick={() => {
-              setPage("monitoring");
-              setMobileMenuOpen(false);
-            }}
-          >
-            <span>◒</span>
-            Monitoring
-          </button>
-
-          <button
-            className={
-              page === "deployments"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            onClick={() => {
-              setPage("deployments");
-              setMobileMenuOpen(false);
-            }}
-          >
-            <span>⇄</span>
-            Deployments
-          </button>
-
-          <button
-            className={
-              page === "alerts"
-                ? "nav-item active"
-                : "nav-item"
-            }
-            onClick={() => {
-              setPage("alerts");
-              setMobileMenuOpen(false);
-              loadAlerts();
-            }}
-            type="button"
-          >
-            <span>🔔</span>
-
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent:
-                  "space-between",
-                width: "100%",
-                gap: "8px",
-              }}
-            >
-              <span>
-                Alerts
-              </span>
-
-              {unreadAlertCount > 0 && (
-                <span
-                  style={{
-                    minWidth: "20px",
-                    height: "20px",
-                    padding:
-                      "0 6px",
-                    borderRadius:
-                      "999px",
-                    background:
-                      "#ef4444",
-                    color: "#ffffff",
-                    fontSize: "11px",
-                    fontWeight: "700",
-                    display:
-                      "inline-flex",
-                    alignItems:
-                      "center",
-                    justifyContent:
-                      "center",
-                  }}
-                >
-                  {unreadAlertCount >
-                  99
-                    ? "99+"
-                    : unreadAlertCount}
-                </span>
-              )}
-            </span>
-          </button>
-        </nav>
-
-        <div className="sidebar-bottom">
-          <button
-            className="theme-toggle"
-            onClick={() =>
-              setDarkMode(
-                (prev) => !prev
-              )
-            }
-            type="button"
-          >
-            <span>
-              {darkMode
-                ? "☀️"
-                : "🌙"}
-            </span>
-
-            <span>
-              {darkMode
-                ? "Light Mode"
-                : "Dark Mode"}
-            </span>
-          </button>
-
-          <div className="connection-status">
-            <span className="online-dot" />
-
-            <div>
-              <strong>
-                AWS Connected
-              </strong>
-
-              <small>
-                Infrastructure online
-              </small>
-            </div>
-          </div>
-
-          <button
-            className="logout-button"
-            onClick={logout}
-            type="button"
-          >
-            <span>↪</span>
-            Logout
-          </button>
-        </div>
-      </aside>
+      <Sidebar />
 
       <main className="main-content">
-        <header className="topbar">
-          <div className="topbar-left">
+        <Topbar />
+
+        {error && (
+          <div
+            style={{
+              margin: "16px 30px 0",
+            }}
+            className="form-error"
+          >
+            {error}
+
             <button
-              className="mobile-menu-button"
-              onClick={() =>
-                setMobileMenuOpen(
-                  (prev) => !prev
-                )
-              }
               type="button"
-            >
-              ☰
-            </button>
-
-            <div>
-              <div className="breadcrumb">
-                CloudOps Automator /{" "}
-                <strong>
-                  {page === "dashboard"
-                    ? "Dashboard"
-                    : page === "servers"
-                    ? "EC2 Instances"
-                    : page === "monitoring"
-                    ? "Monitoring"
-                    : page === "deployments"
-                    ? "Deployments"
-                    : "Alerts"}
-                </strong>
-              </div>
-
-              <h1>
-                {page === "dashboard"
-                  ? "Infrastructure Overview"
-                  : page === "servers"
-                  ? "EC2 Instances"
-                  : page === "monitoring"
-                  ? "AWS Monitoring"
-                  : page === "deployments"
-                  ? "Deployment Center"
-                  : "Alerts & Notifications"}
-              </h1>
-            </div>
-          </div>
-
-          <div className="topbar-actions">
-            <button
-              className="icon-button"
-              onClick={() =>
-                setDarkMode(
-                  (prev) => !prev
-                )
-              }
-              title={
-                darkMode
-                  ? "Switch to light mode"
-                  : "Switch to dark mode"
-              }
-              type="button"
-            >
-              {darkMode
-                ? "☀"
-                : "☾"}
-            </button>
-
-            {unreadAlertCount > 0 && (
-              <button
-                className="icon-button"
-                onClick={() => {
-                  setPage("alerts");
-                  loadAlerts();
-                }}
-                title="View alerts"
-                type="button"
-                style={{
-                  position: "relative",
-                }}
-              >
-                🔔
-
-                <span
-                  style={{
-                    position:
-                      "absolute",
-                    top: "-4px",
-                    right: "-4px",
-                    minWidth: "17px",
-                    height: "17px",
-                    padding:
-                      "0 4px",
-                    borderRadius:
-                      "999px",
-                    background:
-                      "#ef4444",
-                    color:
-                      "#ffffff",
-                    fontSize:
-                      "9px",
-                    fontWeight:
-                      "700",
-                    display:
-                      "flex",
-                    alignItems:
-                      "center",
-                    justifyContent:
-                      "center",
-                  }}
-                >
-                  {unreadAlertCount >
-                  99
-                    ? "99+"
-                    : unreadAlertCount}
-                </span>
-              </button>
-            )}
-
-            <button
-              className="refresh-button"
-              onClick={() => {
-                loadAllData();
-                loadAlerts();
+              className="btn btn-ghost btn-sm"
+              style={{
+                float: "right",
+                marginTop: -7,
               }}
-              disabled={
-                loading ||
-                alertsLoading
-              }
-              type="button"
+              onClick={() => setError("")}
             >
-              ↻ <span>Refresh</span>
+              <Icon
+                name="close"
+                size={13}
+              />
             </button>
           </div>
-        </header>
-
-        <div className="content-area">
-          {error && (
-            <div className="global-alert">
-              <span>⚠</span>
-
-              <span>{error}</span>
-
-              <button
-                onClick={() =>
-                  setError("")
-                }
-                type="button"
-              >
-                ×
-              </button>
-            </div>
-          )}
-
-          {/* ================================================== */}
-          {/* DASHBOARD                                         */}
-          {/* ================================================== */}
-
-          {page === "dashboard" && (
-            <>
-              <section className="welcome-row">
-                <div>
-                  <p className="eyebrow">
-                    CLOUD OPERATIONS
-                  </p>
-
-                  <h2>
-                    Good to see you.
-                  </h2>
-
-                  <p>
-                    Monitor your AWS
-                    infrastructure and
-                    manage deployments
-                    from one place.
-                  </p>
-                </div>
-
-                <button
-                  className="primary-button"
-                  onClick={() =>
-                    setPage(
-                      "deployments"
-                    )
-                  }
-                >
-                  + New Deployment
-                </button>
-              </section>
-
-              <section className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-card-top">
-                    <span>
-                      Total Servers
-                    </span>
-
-                    <span className="stat-icon blue">
-                      ▣
-                    </span>
-                  </div>
-
-                  <strong>
-                    {totalServers}
-                  </strong>
-
-                  <small>
-                    EC2 infrastructure
-                  </small>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-card-top">
-                    <span>
-                      Running
-                    </span>
-
-                    <span className="stat-icon green">
-                      ●
-                    </span>
-                  </div>
-
-                  <strong>
-                    {runningServers}
-                  </strong>
-
-                  <small>
-                    Currently active
-                  </small>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-card-top">
-                    <span>
-                      Stopped
-                    </span>
-
-                    <span className="stat-icon orange">
-                      ■
-                    </span>
-                  </div>
-
-                  <strong>
-                    {stoppedServers}
-                  </strong>
-
-                  <small>
-                    Currently stopped
-                  </small>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-card-top">
-                    <span>
-                      Deployments
-                    </span>
-
-                    <span className="stat-icon purple">
-                      ⇄
-                    </span>
-                  </div>
-
-                  <strong>
-                    {totalDeployments}
-                  </strong>
-
-                  <small>
-                    All deployments
-                  </small>
-                </div>
-              </section>
-
-              <section className="dashboard-grid">
-                <div className="panel large-panel">
-                  <div className="panel-header">
-                    <div>
-                      <p className="eyebrow">
-                        COMPUTE
-                      </p>
-
-                      <h3>
-                        EC2 Instances
-                      </h3>
-                    </div>
-
-                    <button
-                      className="text-button"
-                      onClick={() =>
-                        setPage(
-                          "servers"
-                        )
-                      }
-                    >
-                      View all →
-                    </button>
-                  </div>
-
-                  <div className="instance-list">
-                    {servers.length === 0 ? (
-                      <div className="empty-state">
-                        No EC2 instances found.
-                      </div>
-                    ) : (
-                      servers
-                        .slice(0, 5)
-                        .map(
-                          (server) => (
-                            <div
-                              className="instance-row"
-                              key={
-                                server.id
-                              }
-                            >
-                              <div className="instance-main">
-                                <div className="instance-icon">
-                                  EC2
-                                </div>
-
-                                <div>
-                                  <strong>
-                                    {
-                                      server.name
-                                    }
-                                  </strong>
-
-                                  <small>
-                                    {server.server_type ||
-                                      server.type ||
-                                      "EC2 Instance"}
-                                  </small>
-                                </div>
-                              </div>
-
-                              <div className="instance-meta">
-                                <span
-                                  className={`status-badge ${getStatusClass(
-                                    server.status ||
-                                      server.state
-                                  )}`}
-                                >
-                                  <span />
-
-                                  {server.status ||
-                                    server.state}
-                                </span>
-
-                                <span className="instance-ip">
-                                  {server.ip_address ||
-                                    server.public_ip ||
-                                    "No public IP"}
-                                </span>
-
-                                {getServerStatus(
-                                  server
-                                ) ===
-                                  "running" && (
-                                  <button
-                                    className="details-button"
-                                    type="button"
-                                    onClick={() =>
-                                      loadMonitoring(
-                                        server.id
-                                      )
-                                    }
-                                    disabled={
-                                      monitoringLoading[
-                                        server.id
-                                      ]
-                                    }
-                                  >
-                                    {monitoringLoading[
-                                      server.id
-                                    ]
-                                      ? "Loading..."
-                                      : "Monitor"}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          )
-                        )
-                    )}
-                  </div>
-                </div>
-
-                <div className="panel">
-                  <div className="panel-header">
-                    <div>
-                      <p className="eyebrow">
-                        CI/CD
-                      </p>
-
-                      <h3>
-                        Deployment Overview
-                      </h3>
-                    </div>
-                  </div>
-
-                  <div className="deployment-summary">
-                    <div>
-                      <span>
-                        Successful
-                      </span>
-
-                      <strong className="success-text">
-                        {
-                          successfulDeployments
-                        }
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>
-                        Failed
-                      </span>
-
-                      <strong className="failed-text">
-                        {
-                          failedDeployments
-                        }
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span>
-                        Total
-                      </span>
-
-                      <strong>
-                        {
-                          totalDeployments
-                        }
-                      </strong>
-                    </div>
-                  </div>
-
-                  <button
-                    className="secondary-button full-width"
-                    onClick={() =>
-                      setPage(
-                        "deployments"
-                      )
-                    }
-                  >
-                    Open Deployment Center
-                  </button>
-                </div>
-              </section>
-
-              {selectedMonitoringServer &&
-                renderMonitoringPanel(
-                  selectedMonitoringServer
-                )}
-            </>
-          )}
-
-          {/* ================================================== */}
-          {/* EC2 SERVERS                                       */}
-          {/* ================================================== */}
-
-          {page === "servers" && (
-            <>
-              <section className="page-heading-row">
-                <div>
-                  <p className="eyebrow">
-                    AWS COMPUTE
-                  </p>
-
-                  <h2>
-                    EC2 Instances
-                  </h2>
-
-                  <p>
-                    View, monitor and
-                    control your connected
-                    AWS instances.
-                  </p>
-                </div>
-              </section>
-
-              <section className="panel">
-                <div className="panel-header">
-                  <div>
-                    <h3>
-                      Instances
-                    </h3>
-
-                    <span className="panel-count">
-                      {
-                        filteredServers.length
-                      }{" "}
-                      instances
-                    </span>
-                  </div>
-
-                  <div className="search-box">
-                    <span>⌕</span>
-
-                    <input
-                      value={
-                        searchServer
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        setSearchServer(
-                          event.target
-                            .value
-                        )
-                      }
-                      placeholder="Search instances..."
-                    />
-                  </div>
-                </div>
-
-                <div className="responsive-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>
-                          Instance
-                        </th>
-
-                        <th>
-                          Type
-                        </th>
-
-                        <th>
-                          Status
-                        </th>
-
-                        <th>
-                          IP Address
-                        </th>
-
-                        <th>
-                          Server Type
-                        </th>
-
-                        <th>
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {filteredServers.length ===
-                      0 ? (
-                        <tr>
-                          <td
-                            colSpan="6"
-                            className="table-empty"
-                          >
-                            No instances
-                            found.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredServers.map(
-                          (server) => (
-                            <tr
-                              key={
-                                server.id
-                              }
-                            >
-                              <td>
-                                <div className="table-instance">
-                                  <div className="instance-icon">
-                                    EC2
-                                  </div>
-
-                                  <div>
-                                    <strong>
-                                      {
-                                        server.name
-                                      }
-                                    </strong>
-
-                                    <small>
-                                      ID{" "}
-                                      #
-                                      {
-                                        server.id
-                                      }
-                                    </small>
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td>
-                                {server.instance_type ||
-                                  server.type ||
-                                  "—"}
-                              </td>
-
-                              <td>
-                                <span
-                                  className={`status-badge ${getStatusClass(
-                                    server.status ||
-                                      server.state
-                                  )}`}
-                                >
-                                  <span />
-
-                                  {server.status ||
-                                    server.state}
-                                </span>
-                              </td>
-
-                              <td>
-                                {server.ip_address ||
-                                  server.public_ip ||
-                                  "—"}
-                              </td>
-
-                              <td>
-                                {server.server_type ||
-                                  "—"}
-                              </td>
-
-                              <td>
-                                <div
-                                  className="table-actions"
-                                  style={{
-                                    flexWrap:
-                                      "wrap",
-                                  }}
-                                >
-                                  {getServerStatus(
-                                    server
-                                  ) ===
-                                  "running" ? (
-                                    <>
-                                      <button
-                                        className="danger-outline-button"
-                                        onClick={() =>
-                                          stopServer(
-                                            server.id
-                                          )
-                                        }
-                                      >
-                                        Stop
-                                      </button>
-
-                                      <button
-                                        className="details-button"
-                                        onClick={() =>
-                                          loadMonitoring(
-                                            server.id
-                                          )
-                                        }
-                                        disabled={
-                                          monitoringLoading[
-                                            server.id
-                                          ]
-                                        }
-                                      >
-                                        {monitoringLoading[
-                                          server.id
-                                        ]
-                                          ? "Loading..."
-                                          : "Monitor"}
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button
-                                      className="success-outline-button"
-                                      onClick={() =>
-                                        startServer(
-                                          server.id
-                                        )
-                                      }
-                                    >
-                                      Start
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        )
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              {selectedMonitoringServer &&
-                renderMonitoringPanel(
-                  selectedMonitoringServer
-                )}
-            </>
-          )}
-
-          {/* ================================================== */}
-          {/* MONITORING                                        */}
-          {/* ================================================== */}
-
-          {page === "monitoring" && (
-            <>
-              <section className="page-heading-row">
-                <div>
-                  <p className="eyebrow">
-                    AMAZON CLOUDWATCH
-                  </p>
-
-                  <h2>
-                    AWS Monitoring
-                  </h2>
-
-                  <p>
-                    Monitor CPU, network and
-                    EBS activity for your
-                    EC2 instances.
-                  </p>
-                </div>
-              </section>
-
-              <section className="panel">
-                <div className="panel-header">
-                  <div>
-                    <h3>
-                      Select EC2 Instance
-                    </h3>
-
-                    <span className="panel-count">
-                      {
-                        servers.filter(
-                          (server) =>
-                            getServerStatus(
-                              server
-                            ) ===
-                            "running"
-                        ).length
-                      }{" "}
-                      running instances
-                    </span>
-                  </div>
-
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={loadAllData}
-                    disabled={loading}
-                  >
-                    ↻ Refresh Instances
-                  </button>
-                </div>
-
-                <div className="instance-list">
-                  {servers.length === 0 ? (
-                    <div className="empty-state">
-                      No EC2 instances found.
-                    </div>
-                  ) : (
-                    servers.map(
-                      (server) => (
-                        <div
-                          className="instance-row"
-                          key={
-                            server.id
-                          }
-                        >
-                          <div className="instance-main">
-                            <div className="instance-icon">
-                              EC2
-                            </div>
-
-                            <div>
-                              <strong>
-                                {
-                                  server.name
-                                }
-                              </strong>
-
-                              <small>
-                                {
-                                  server.id
-                                }
-                              </small>
-                            </div>
-                          </div>
-
-                          <div className="instance-meta">
-                            <span
-                              className={`status-badge ${getStatusClass(
-                                server.status ||
-                                  server.state
-                              )}`}
-                            >
-                              <span />
-
-                              {server.status ||
-                                server.state}
-                            </span>
-
-                            <button
-                              className="details-button"
-                              type="button"
-                              disabled={
-                                getServerStatus(
-                                  server
-                                ) !==
-                                  "running" ||
-                                monitoringLoading[
-                                  server.id
-                                ]
-                              }
-                              onClick={() =>
-                                loadMonitoring(
-                                  server.id
-                                )
-                              }
-                            >
-                              {monitoringLoading[
-                                server.id
-                              ]
-                                ? "Loading..."
-                                : "View Metrics"}
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    )
-                  )}
-                </div>
-              </section>
-
-              {selectedMonitoringServer &&
-                renderMonitoringPanel(
-                  selectedMonitoringServer
-                )}
-            </>
-          )}
-
-          {/* ================================================== */}
-          {/* DEPLOYMENTS                                       */}
-          {/* ================================================== */}
-
-          {page === "deployments" && (
-            <>
-              <section className="page-heading-row">
-                <div>
-                  <p className="eyebrow">
-                    CI/CD PIPELINE
-                  </p>
-
-                  <h2>
-                    Deployment Center
-                  </h2>
-
-                  <p>
-                    Create, monitor and
-                    inspect your
-                    application
-                    deployments.
-                  </p>
-                </div>
-              </section>
-
-              <section className="deployment-layout">
-                <div className="panel deployment-create-panel">
-                  <div className="panel-header">
-                    <div>
-                      <p className="eyebrow">
-                        NEW RELEASE
-                      </p>
-
-                      <h3>
-                        Create Deployment
-                      </h3>
-                    </div>
-                  </div>
-
-                  <form
-                    className="deployment-form"
-                    onSubmit={
-                      createDeployment
-                    }
-                  >
-                    <label>
-                      Application
-
-                      <input
-                        value={
-                          deploymentForm.application
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          setDeploymentForm(
-                            {
-                              ...deploymentForm,
-                              application:
-                                event
-                                  .target
-                                  .value,
-                            }
-                          )
-                        }
-                        placeholder="CloudOps Automator"
-                        required
-                      />
-                    </label>
-
-                    <label>
-                      Version
-
-                      <input
-                        value={
-                          deploymentForm.version
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          setDeploymentForm(
-                            {
-                              ...deploymentForm,
-                              version:
-                                event
-                                  .target
-                                  .value,
-                            }
-                          )
-                        }
-                        placeholder="v1.0.0"
-                        required
-                      />
-                    </label>
-
-                    <label>
-                      Server Name
-
-                      <input
-                        value={
-                          deploymentForm.server_name
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          setDeploymentForm(
-                            {
-                              ...deploymentForm,
-                              server_name:
-                                event
-                                  .target
-                                  .value,
-                            }
-                          )
-                        }
-                        placeholder="Production Server"
-                      />
-                    </label>
-
-                    <label>
-                      EC2 Instance ID
-
-                      <input
-                        value={
-                          deploymentForm.ec2_instance_id
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          setDeploymentForm(
-                            {
-                              ...deploymentForm,
-                              ec2_instance_id:
-                                event
-                                  .target
-                                  .value,
-                            }
-                          )
-                        }
-                        placeholder="i-0123456789abcdef"
-                      />
-                    </label>
-
-                    <button
-                      className="primary-button full-width"
-                      type="submit"
-                      disabled={loading}
-                    >
-                      {loading
-                        ? "Starting Deployment..."
-                        : "Start Deployment →"}
-                    </button>
-                  </form>
-                </div>
-
-                <div className="panel">
-                  <div className="panel-header">
-                    <div>
-                      <p className="eyebrow">
-                        ACTIVITY
-                      </p>
-
-                      <h3>
-                        Deployment History
-                      </h3>
-
-                      <span className="panel-count">
-                        {
-                          filteredDeployments.length
-                        }{" "}
-                        of{" "}
-                        {totalDeployments}{" "}
-                        deployments
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "8px",
-                        alignItems:
-                          "center",
-                        flexWrap:
-                          "wrap",
-                        justifyContent:
-                          "flex-end",
-                      }}
-                    >
-                      <div className="search-box">
-                        <span>⌕</span>
-
-                        <input
-                          value={
-                            searchDeployment
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            setSearchDeployment(
-                              event
-                                .target
-                                .value
-                            )
-                          }
-                          placeholder="Search..."
-                        />
-                      </div>
-
-                      <select
-                        value={
-                          deploymentStatusFilter
-                        }
-                        onChange={(
-                          event
-                        ) =>
-                          setDeploymentStatusFilter(
-                            event
-                              .target
-                              .value
-                          )
-                        }
-                        style={{
-                          minHeight:
-                            "42px",
-                          padding:
-                            "0 12px",
-                          borderRadius:
-                            "10px",
-                          border:
-                            "1px solid var(--border-color, #d1d5db)",
-                          background:
-                            "var(--card-bg, #ffffff)",
-                          color:
-                            "inherit",
-                          fontSize:
-                            "13px",
-                          fontWeight:
-                            "600",
-                          cursor:
-                            "pointer",
-                        }}
-                      >
-                        <option value="all">
-                          All Status
-                        </option>
-
-                        <option value="pending">
-                          Pending
-                        </option>
-
-                        <option value="running">
-                          Running
-                        </option>
-
-                        <option value="successful">
-                          Successful
-                        </option>
-
-                        <option value="failed">
-                          Failed
-                        </option>
-                      </select>
-
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        onClick={() =>
-                          loadAllData()
-                        }
-                        disabled={loading}
-                      >
-                        {loading
-                          ? "Loading..."
-                          : "↻ Refresh"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="responsive-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>#</th>
-
-                          <th>
-                            Application
-                          </th>
-
-                          <th>
-                            Version
-                          </th>
-
-                          <th>
-                            Server
-                          </th>
-
-                          <th>
-                            Status
-                          </th>
-
-                          <th>
-                            Created
-                          </th>
-
-                          <th>
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {filteredDeployments.length ===
-                        0 ? (
-                          <tr>
-                            <td
-                              colSpan="7"
-                              className="table-empty"
-                            >
-                              No deployments
-                              found.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredDeployments.map(
-                            (
-                              deployment
-                            ) => (
-                              <tr
-                                key={
-                                  deployment.id
-                                }
-                              >
-                                <td>
-                                  #
-                                  {
-                                    deployment.id
-                                  }
-                                </td>
-
-                                <td>
-                                  <strong>
-                                    {
-                                      deployment.application
-                                    }
-                                  </strong>
-                                </td>
-
-                                <td>
-                                  {
-                                    deployment.version
-                                  }
-                                </td>
-
-                                <td>
-                                  {
-                                    deployment.server_name ||
-                                    "—"
-                                  }
-                                </td>
-
-                                <td>
-                                  <span
-                                    className={`status-badge ${getStatusClass(
-                                      deployment.status
-                                    )}`}
-                                  >
-                                    <span />
-
-                                    {
-                                      deployment.status
-                                    }
-                                  </span>
-                                </td>
-
-                                <td>
-                                  {formatDate(
-                                    deployment.created_at
-                                  )}
-                                </td>
-
-                                <td>
-                                  <div className="table-actions">
-                                    <button
-                                      className="details-button"
-                                      type="button"
-                                      onClick={() =>
-                                        viewDeploymentDetails(
-                                          deployment.id
-                                        )
-                                      }
-                                    >
-                                      View Details
-                                    </button>
-
-                                    <button
-                                      className="delete-button"
-                                      type="button"
-                                      onClick={() =>
-                                        deleteDeployment(
-                                          deployment.id
-                                        )
-                                      }
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          )
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </section>
-
-              {selectedDeployment && (
-                <section className="panel deployment-details-panel">
-                  <div className="panel-header">
-                    <div>
-                      <p className="eyebrow">
-                        DEPLOYMENT #
-                        {
-                          selectedDeployment.id
-                        }
-                      </p>
-
-                      <h3>
-                        Deployment Details
-                      </h3>
-                    </div>
-
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      onClick={() =>
-                        setSelectedDeployment(
-                          null
-                        )
-                      }
-                    >
-                      Close
-                    </button>
-                  </div>
-
-                  {deploymentDetailsLoading ? (
-                    <div className="loading-state">
-                      Loading deployment
-                      details...
-                    </div>
-                  ) : (
-                    <>
-                      <div className="details-grid">
-                        <div className="detail-item">
-                          <span>
-                            Application
-                          </span>
-
-                          <strong>
-                            {
-                              selectedDeployment.application ||
-                              "—"
-                            }
-                          </strong>
-                        </div>
-
-                        <div className="detail-item">
-                          <span>
-                            Version
-                          </span>
-
-                          <strong>
-                            {
-                              selectedDeployment.version ||
-                              "—"
-                            }
-                          </strong>
-                        </div>
-
-                        <div className="detail-item">
-                          <span>
-                            Server
-                          </span>
-
-                          <strong>
-                            {
-                              selectedDeployment.server_name ||
-                              "—"
-                            }
-                          </strong>
-                        </div>
-
-                        <div className="detail-item">
-                          <span>
-                            EC2 ID
-                          </span>
-
-                          <strong>
-                            {
-                              selectedDeployment.ec2_instance_id ||
-                              "—"
-                            }
-                          </strong>
-                        </div>
-
-                        <div className="detail-item">
-                          <span>
-                            Status
-                          </span>
-
-                          <span
-                            className={`status-badge ${getStatusClass(
-                              selectedDeployment.status
-                            )}`}
-                          >
-                            <span />
-
-                            {
-                              selectedDeployment.status
-                            }
-                          </span>
-                        </div>
-
-                        <div className="detail-item">
-                          <span>
-                            Created
-                          </span>
-
-                          <strong>
-                            {formatDate(
-                              selectedDeployment.created_at
-                            )}
-                          </strong>
-                        </div>
-
-                        <div className="detail-item">
-                          <span>
-                            Started
-                          </span>
-
-                          <strong>
-                            {formatDate(
-                              selectedDeployment.started_at
-                            )}
-                          </strong>
-                        </div>
-
-                        <div className="detail-item">
-                          <span>
-                            Completed
-                          </span>
-
-                          <strong>
-                            {formatDate(
-                              selectedDeployment.completed_at
-                            )}
-                          </strong>
-                        </div>
-                      </div>
-
-                      <div className="logs-section">
-                        <div className="logs-header">
-                          <div>
-                            <p className="eyebrow">
-                              EXECUTION OUTPUT
-                            </p>
-
-                            <h4>
-                              Deployment Logs
-                            </h4>
-                          </div>
-                        </div>
-
-                        <pre className="deployment-logs">
-                          {selectedDeployment.logs ||
-                            "No deployment logs available."}
-                        </pre>
-                      </div>
-                    </>
-                  )}
-                </section>
-              )}
-            </>
-          )}
-
-          {/* ================================================== */}
-          {/* ALERTS                                             */}
-          {/* ================================================== */}
-
-          {page === "alerts" &&
-            renderAlertsPage()}
-        </div>
+        )}
+
+        {message && (
+          <div
+            style={{
+              margin: "16px 30px 0",
+            }}
+            className="form-success"
+          >
+            {message}
+
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{
+                float: "right",
+                marginTop: -7,
+              }}
+              onClick={() => setMessage("")}
+            >
+              <Icon
+                name="close"
+                size={13}
+              />
+            </button>
+          </div>
+        )}
+
+        {page === "dashboard" &&
+          renderDashboard()}
+
+        {page === "servers" &&
+          renderServersPage()}
+
+        {page === "monitoring" &&
+          renderMonitoringPage()}
+
+        {page === "deployments" &&
+          renderDeploymentsPage()}
+
+        {page === "alerts" &&
+          renderAlertsPage()}
       </main>
+
+      <DeploymentModal showDeploymentForm={showDeploymentForm} setShowDeploymentForm={setShowDeploymentForm} deploymentForm={deploymentForm} setDeploymentForm={setDeploymentForm} createDeployment={createDeployment} />
+      <DeploymentDetailsModal />
     </div>
   );
 }
-
-export default App;
