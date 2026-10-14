@@ -35,11 +35,22 @@ def process_sqs_messages(max_messages=5):
         try:
             body = json.loads(message["Body"])
 
-            # SNS wraps its published message in an envelope.
-            if body.get("Type") == "Notification":
-                notification = json.loads(body.get("Message", "{}"))
-            else:
-                notification = body
+           
+# SNS wraps its published message in an envelope.
+if body.get("Type") == "Notification":
+    inner_message = body.get("Message", "{}")
+
+    try:
+        notification = json.loads(inner_message)
+    except (json.JSONDecodeError, TypeError):
+        # Ignore plain-text test messages safely.
+        notification = {}
+else:
+    notification = body
+
+if not isinstance(notification, dict):
+    notification = {}
+
 
             alarm_name = notification.get("AlarmName", "CloudWatch Alarm")
             new_state = notification.get("NewStateValue", "")
