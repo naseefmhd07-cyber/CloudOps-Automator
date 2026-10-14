@@ -137,3 +137,48 @@ def check_high_cpu(instance_id, threshold=80):
         return cpu_value
 
     return None
+
+def get_ec2_metric_history(instance_id, minutes=60):
+    """Get historical CloudWatch metrics for an EC2 instance."""
+    cloudwatch = boto3.client("cloudwatch", region_name=AWS_REGION)
+
+    end_time = datetime.now(timezone.utc)
+    start_time = end_time - timedelta(minutes=minutes)
+
+    metric_names = [
+        "CPUUtilization",
+        "NetworkIn",
+        "NetworkOut",
+        "EBSReadOps",
+        "EBSWriteOps",
+    ]
+
+    history = {}
+
+    for metric_name in metric_names:
+        response = cloudwatch.get_metric_statistics(
+            Namespace="AWS/EC2",
+            MetricName=metric_name,
+            Dimensions=[
+                {"Name": "InstanceId", "Value": instance_id}
+            ],
+            StartTime=start_time,
+            EndTime=end_time,
+            Period=300,
+            Statistics=["Average"],
+        )
+
+        datapoints = sorted(
+            response.get("Datapoints", []),
+            key=lambda point: point["Timestamp"]
+        )
+
+        history[metric_name] = [
+            {
+                "timestamp": point["Timestamp"].isoformat(),
+                "value": point.get("Average"),
+            }
+            for point in datapoints
+        ]
+
+    return history
