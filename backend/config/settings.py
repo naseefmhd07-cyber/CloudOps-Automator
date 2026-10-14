@@ -15,6 +15,9 @@ import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+# AWS SQS CloudWatch alerts
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+SQS_QUEUE_URL = os.getenv("SQS_QUEUE_URL", "")
 
 
 # Quick-start development settings - unsuitable for production

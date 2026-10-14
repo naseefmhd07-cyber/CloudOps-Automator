@@ -65,16 +65,21 @@ urlpatterns = [
     # EC2 MONITORING
     # =========================
 
-    path(
+      path(
         "monitoring/<str:instance_id>/",
         views.ec2_monitoring,
         name="ec2_monitoring"
     ),
     path(
-    "monitoring/<str:instance_id>/check-cpu/",
-    views.check_cpu_alert,
-    name="check_cpu_alert",
-),
+        "monitoring/<str:instance_id>/history/",
+        views.ec2_monitoring_history,
+        name="ec2_monitoring_history"
+    ),
+    path(
+        "monitoring/<str:instance_id>/check-cpu/",
+        views.check_cpu_alert,
+        name="check_cpu_alert"
+    ),
 
     # =========================
     # DEPLOYMENTS
@@ -107,6 +112,16 @@ urlpatterns = [
         views.mark_alert_read,
         name="mark_alert_read"
     ),
+    # =========================
+    # SQS CLOUDWATCH ALERTS
+    # =========================
+
+    path(
+        "alerts/process-cloudwatch/",
+        views.process_cloudwatch_alerts,
+        name="process_cloudwatch_alerts"
+    ),
+
 
     # =========================
     # AUTHENTICATION

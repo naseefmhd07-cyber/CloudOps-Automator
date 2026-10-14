@@ -1,6 +1,7 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from .sqs_service import process_sqs_messages
 
 from .models import Server, Deployment, Alert
 from .serializers import (
@@ -14,6 +15,7 @@ from .aws_service import (
     start_ec2_instance,
     stop_ec2_instance,
     get_ec2_metrics,
+    get_ec2_metric_history,
     check_high_cpu,
 )
 from .deployment_service import run_deployment
@@ -222,6 +224,31 @@ def ec2_monitoring(request, instance_id):
             "error": "Unable to fetch CloudWatch metrics",
             "details": str(e)
         }, status=500)
+
+
+# =========================
+# EC2 MONITORING HISTORY
+# =========================
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def ec2_monitoring_history(request, instance_id):
+    try:
+        history = get_ec2_metric_history(instance_id)
+
+        return Response({
+            "instance_id": instance_id,
+            "region": "us-east-1",
+            "minutes": 60,
+            "history": history,
+        })
+
+    except Exception as e:
+        return Response({
+            "error": "Unable to fetch CloudWatch metric history",
+            "details": str(e),
+        }, status=500)
+
 
 
 # =========================
@@ -524,4 +551,22 @@ def check_cpu_alert(request, instance_id):
     except Exception as e:
         return Response({
             "error": str(e)
+        }, status=500)
+    # =========================
+# SQS CLOUDWATCH ALERTS
+# =========================
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def process_cloudwatch_alerts(request):
+    try:
+        result = process_sqs_messages(max_messages=5)
+        return Response({
+            "success": True,
+            **result,
+        })
+    except Exception as e:
+        return Response({
+            "success": False,
+            "error": str(e),
         }, status=500)
