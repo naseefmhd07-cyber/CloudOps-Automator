@@ -1,24 +1,21 @@
+
 import json
-import os
 
 import boto3
+from django.conf import settings
 from django.db import transaction
 
 from .models import Alert
 
-
-from django.conf import settings
-
 AWS_REGION = settings.AWS_REGION
 SQS_QUEUE_URL = settings.SQS_QUEUE_URL
 
+
 def process_sqs_messages(max_messages=5):
-    """
-    Read CloudWatch alarm notifications from SQS and create
-    corresponding Django Alert records.
-    """
+    """Process CloudWatch alarm notifications delivered through SQS."""
+
     if not SQS_QUEUE_URL:
-        raise RuntimeError("SQS_QUEUE_URL environment variable is not configured.")
+        raise RuntimeError("SQS_QUEUE_URL is not configured.")
 
     sqs = boto3.client("sqs", region_name=AWS_REGION)
 
@@ -35,28 +32,26 @@ def process_sqs_messages(max_messages=5):
         try:
             body = json.loads(message["Body"])
 
-           
-# SNS wraps its published message in an envelope.
-if body.get("Type") == "Notification":
-    inner_message = body.get("Message", "{}")
+            # SNS wraps its published message in an envelope.
+            if isinstance(body, dict) and body.get("Type") == "Notification":
+                inner_message = body.get("Message", "{}")
 
-    try:
-        notification = json.loads(inner_message)
-    except (json.JSONDecodeError, TypeError):
-        # Ignore plain-text test messages safely.
-        notification = {}
-else:
-    notification = body
+                try:
+                    notification = json.loads(inner_message)
+                except (json.JSONDecodeError, TypeError):
+                    # Plain-text test notifications are not CloudWatch alarms.
+                    notification = {}
+            else:
+                notification = body
 
-if not isinstance(notification, dict):
-    notification = {}
-
+            if not isinstance(notification, dict):
+                notification = {}
 
             alarm_name = notification.get("AlarmName", "CloudWatch Alarm")
             new_state = notification.get("NewStateValue", "")
             reason = notification.get("NewStateReason", "")
 
-            # Only create dashboard alerts when the alarm enters ALARM.
+            # Ignore non-ALARM notifications and test messages.
             if new_state != "ALARM":
                 sqs.delete_message(
                     QueueUrl=SQS_QUEUE_URL,
@@ -67,6 +62,7 @@ if not isinstance(notification, dict):
 
             trigger = notification.get("Trigger", {})
             dimensions = trigger.get("Dimensions", [])
+
             instance_id = next(
                 (
                     item.get("value", "")
@@ -87,7 +83,10 @@ if not isinstance(notification, dict):
                 if not existing:
                     Alert.objects.create(
                         title=alarm_name[:200],
-                        message=reason or f"CloudWatch alarm {alarm_name} entered ALARM state.",
+                        message=(
+                            reason
+                            or f"CloudWatch alarm {alarm_name} entered ALARM state."
+                        ),
                         alert_type="high_cpu",
                         severity="critical",
                         ec2_instance_id=instance_id,
