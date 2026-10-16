@@ -46,8 +46,8 @@ echo "[4/8] Installing backend dependencies..."
 echo "[5/8] Running Django checks and migrations..."
 cd "$BACKEND_DIR"
 
-"$VENV/bin/python" manage.py check
-"$VENV/bin/python" manage.py migrate --noinput
+sudo bash -c 'set -a; source /etc/cloudops.env; set +a; cd /home/ec2-user/CloudOps-Automator/backend; runuser -u ec2-user -- /home/ec2-user/cloudops-venv312/bin/python manage.py check'
+sudo bash -c 'set -a; source /etc/cloudops.env; set +a; cd /home/ec2-user/CloudOps-Automator/backend; runuser -u ec2-user -- /home/ec2-user/cloudops-venv312/bin/python manage.py migrate --noinput'
 
 echo "[6/8] Building React frontend..."
 cd "$FRONTEND_DIR"
