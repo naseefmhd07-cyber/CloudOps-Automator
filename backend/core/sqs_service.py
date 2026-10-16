@@ -47,11 +47,17 @@ def process_sqs_messages(max_messages=5):
             if not isinstance(notification, dict):
                 notification = {}
 
-            alarm_name = notification.get("AlarmName", "CloudWatch Alarm")
-            new_state = notification.get("NewStateValue", "")
+            # Validate the payload before acknowledging the SQS message.
+            alarm_name = notification.get("AlarmName")
+            new_state = notification.get("NewStateValue")
             reason = notification.get("NewStateReason", "")
 
-            # Ignore non-ALARM notifications and test messages.
+            if not alarm_name or new_state not in {
+                "ALARM", "OK", "INSUFFICIENT_DATA"
+            }:
+                raise ValueError("Invalid CloudWatch alarm notification.")
+
+            # Valid non-ALARM states need no alert record.
             if new_state != "ALARM":
                 sqs.delete_message(
                     QueueUrl=SQS_QUEUE_URL,
@@ -65,9 +71,9 @@ def process_sqs_messages(max_messages=5):
 
             instance_id = next(
                 (
-                    item.get("value", "")
+                    item.get("Value", item.get("value", ""))
                     for item in dimensions
-                    if item.get("name") == "InstanceId"
+                    if item.get("Name", item.get("name", "")) == "InstanceId"
                 ),
                 "",
             )

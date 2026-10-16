@@ -448,7 +448,8 @@ export default function App() {
   const [deployments, setDeployments] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [monitoring, setMonitoring] = useState(null);
-
+  const [monitoringHistory, setMonitoringHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [monitoringLoading, setMonitoringLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -768,26 +769,38 @@ export default function App() {
     }
   }
 
-  async function loadMonitoring(instanceId) {
+
+    async function loadMonitoring(instanceId) {
     if (!instanceId) return;
 
     setMonitoringLoading(true);
+    setHistoryLoading(true);
     setError("");
+    setMonitoringHistory(null);
 
     try {
       const data = await apiFetch(
         `/monitoring/${instanceId}/`
       );
-
       setMonitoring(data);
+
+      try {
+        const historyData = await apiFetch(
+          `/monitoring/${instanceId}/history/`
+        );
+        setMonitoringHistory(historyData);
+      } catch {
+        setMonitoringHistory(null);
+      }
+
       setPage("monitoring");
     } catch (err) {
       setError(err.message);
     } finally {
       setMonitoringLoading(false);
+      setHistoryLoading(false);
     }
   }
-
   /* =========================
      ALERTS
   ========================= */
@@ -2162,6 +2175,137 @@ export default function App() {
     );
   }
 
+  function renderHistoryChart(title, series, unit) {
+    const width = 640;
+    const height = 210;
+    const left = 48;
+    const right = 16;
+    const top = 16;
+    const bottom = 38;
+
+    const allValues = series.flatMap((item) =>
+      (item.data || [])
+        .filter((point) => point.value !== null && point.value !== undefined)
+        .map((point) => Number(point.value))
+        .filter(Number.isFinite)
+    );
+
+    if (!allValues.length) {
+      return (
+        <section className="panel" style={{ marginBottom: 18 }}>
+          <div className="panel-body">
+            <h3>{title}</h3>
+            <p>No historical datapoints available.</p>
+          </div>
+        </section>
+      );
+    }
+
+    const minValue = Math.min(0, ...allValues);
+    const maxValue = Math.max(...allValues);
+    const range = maxValue - minValue || 1;
+
+    const pointsFor = (item) => {
+      const data = (item.data || [])
+        .filter((point) => point.value !== null && point.value !== undefined)
+        .filter((point) => Number.isFinite(Number(point.value)));
+
+      return data.map((point, index) => ({
+        x: left + (data.length > 1 ? index / (data.length - 1) : 0.5) * (width - left - right),
+        y: top + (1 - (Number(point.value) - minValue) / range) * (height - top - bottom),
+        value: Number(point.value),
+        timestamp: point.timestamp,
+      }));
+    };
+
+    return (
+      <section className="panel" style={{ marginBottom: 18 }}>
+        <div className="panel-body">
+          <h3 style={{ marginTop: 0 }}>{title}</h3>
+          <p style={{ color: "#64748b", fontSize: 12 }}>
+            Last 60 minutes · Values in {unit}
+          </p>
+
+          <div style={{ width: "100%", overflowX: "auto" }}>
+            <svg
+              viewBox={`0 0 ${width} ${height}`}
+              style={{ width: "100%", minWidth: 320, display: "block" }}
+              role="img"
+              aria-label={`${title} historical chart`}
+            >
+              {[0, 1, 2, 3, 4].map((step) => {
+                const y = top + step * ((height - top - bottom) / 4);
+                return (
+                  <line
+                    key={step}
+                    x1={left}
+                    x2={width - right}
+                    y1={y}
+                    y2={y}
+                    stroke="#e2e8f0"
+                    strokeDasharray="4 4"
+                  />
+                );
+              })}
+
+              {series.map((item) => {
+                const points = pointsFor(item);
+                return (
+                  <g key={item.name}>
+                    {points.length > 1 && (
+                      <polyline
+                        fill="none"
+                        stroke={item.color}
+                        strokeWidth="2.5"
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+                      />
+                    )}
+
+                    {points.map((point, index) => (
+                      <circle
+                        key={`${item.name}-${index}`}
+                        cx={point.x}
+                        cy={point.y}
+                        r="3"
+                        fill={item.color}
+                      >
+                        <title>
+                          {item.name}: {point.value.toFixed(2)} {unit}
+                          {point.timestamp ? ` · ${point.timestamp}` : ""}
+                        </title>
+                      </circle>
+                    ))}
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 10 }}>
+            {series.map((item) => (
+              <span
+                key={item.name}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}
+              >
+                <span
+                  style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: "50%",
+                    background: item.color,
+                  }}
+                />
+                {item.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   function renderMonitoringPage() {
     const metrics = monitoring?.metrics || {};
 
@@ -2362,6 +2506,74 @@ export default function App() {
                   }
                 />
               </div>
+
+              <section style={{ marginTop: 24 }}>
+                <h3>Historical Monitoring</h3>
+                <p style={{ color: "#64748b", fontSize: 12 }}>
+                  CloudWatch performance over the last 60 minutes
+                </p>
+
+                {historyLoading ? (
+                  <div className="panel">
+                    <div className="panel-body">
+                      Loading historical metrics...
+                    </div>
+                  </div>
+                ) : monitoringHistory?.history ? (
+                  <>
+                    {renderHistoryChart(
+                      "CPU Utilization",
+                      [{
+                        name: "CPU",
+                        color: "#6366f1",
+                        data: monitoringHistory.history.CPUUtilization,
+                      }],
+                      "%"
+                    )}
+
+                    {renderHistoryChart(
+                      "Network Traffic",
+                      [
+                        {
+                          name: "Network In",
+                          color: "#0ea5e9",
+                          data: monitoringHistory.history.NetworkIn,
+                        },
+                        {
+                          name: "Network Out",
+                          color: "#10b981",
+                          data: monitoringHistory.history.NetworkOut,
+                        },
+                      ],
+                      "bytes"
+                    )}
+
+                    {renderHistoryChart(
+                      "EBS Operations",
+                      [
+                        {
+                          name: "Read Operations",
+                          color: "#f59e0b",
+                          data: monitoringHistory.history.EBSReadOps,
+                        },
+                        {
+                          name: "Write Operations",
+                          color: "#ef4444",
+                          data: monitoringHistory.history.EBSWriteOps,
+                        },
+                      ],
+                      "operations"
+                    )}
+                  </>
+                ) : (
+                  <div className="panel">
+                    <div className="panel-body">
+                      Historical metrics could not be loaded.
+                    </div>
+                  </div>
+                )}
+              </section>
+
             </>
           )}
       </div>
