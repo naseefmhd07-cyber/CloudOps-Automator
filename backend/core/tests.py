@@ -598,6 +598,8 @@ class EC2MonitoringAPITests(TestCase):
             response.data["error"],
             "Unable to fetch CloudWatch metrics",
         )
+        self.assertNotIn("details", response.data)
+        self.assertNotIn("Simulated AWS failure", str(response.data))
 
     @patch("core.views.get_ec2_metric_history")
     def test_metrics_history_success(self, mock_history):
@@ -630,6 +632,8 @@ class EC2MonitoringAPITests(TestCase):
             response.data["error"],
             "Unable to fetch CloudWatch metric history",
         )
+        self.assertNotIn("details", response.data)
+        self.assertNotIn("Simulated AWS failure", str(response.data))
 
     def test_current_metrics_requires_authentication(self):
         client = APIClient()

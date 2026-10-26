@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -218,11 +220,13 @@ def ec2_monitoring(request, instance_id):
             "metrics": metrics,
         })
 
-    except Exception as e:
-
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Failed to fetch CloudWatch metrics for instance %s",
+            instance_id,
+        )
         return Response({
             "error": "Unable to fetch CloudWatch metrics",
-            "details": str(e)
         }, status=500)
 
 
@@ -243,10 +247,13 @@ def ec2_monitoring_history(request, instance_id):
             "history": history,
         })
 
-    except Exception as e:
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Failed to fetch CloudWatch metric history for instance %s",
+            instance_id,
+        )
         return Response({
             "error": "Unable to fetch CloudWatch metric history",
-            "details": str(e),
         }, status=500)
 
 
