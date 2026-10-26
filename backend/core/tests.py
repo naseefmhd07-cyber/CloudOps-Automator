@@ -554,3 +554,99 @@ class SQSAlertProcessorTests(TestCase):
             process_sqs_messages()
 
         mock_sqs.delete_message.assert_not_called()
+
+
+class EC2MonitoringAPITests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="monitoring_test_user",
+            password="TestPassword123!",
+        )
+        token = AccessToken.for_user(self.user)
+        self.client = APIClient()
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {token}"
+        )
+        self.instance_id = "i-0123456789abcdef0"
+
+    @patch("core.views.get_ec2_metrics")
+    def test_current_metrics_success(self, mock_metrics):
+        mock_metrics.return_value = {
+            "CPUUtilization": {"value": 12.5, "timestamp": "test"}
+        }
+
+        response = self.client.get(
+            f"/api/monitoring/{self.instance_id}/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["instance_id"], self.instance_id)
+        self.assertEqual(response.data["region"], "us-east-1")
+        self.assertIn("CPUUtilization", response.data["metrics"])
+        mock_metrics.assert_called_once_with(self.instance_id)
+
+    @patch("core.views.get_ec2_metrics")
+    def test_current_metrics_aws_failure(self, mock_metrics):
+        mock_metrics.side_effect = Exception("Simulated AWS failure")
+
+        response = self.client.get(
+            f"/api/monitoring/{self.instance_id}/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(
+            response.data["error"],
+            "Unable to fetch CloudWatch metrics",
+        )
+
+    @patch("core.views.get_ec2_metric_history")
+    def test_metrics_history_success(self, mock_history):
+        mock_history.return_value = {
+            "CPUUtilization": [
+                {"timestamp": "2026-10-18T03:00:00+00:00", "value": 12.5}
+            ]
+        }
+
+        response = self.client.get(
+            f"/api/monitoring/{self.instance_id}/history/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["instance_id"], self.instance_id)
+        self.assertEqual(response.data["minutes"], 60)
+        self.assertIn("CPUUtilization", response.data["history"])
+        mock_history.assert_called_once_with(self.instance_id)
+
+    @patch("core.views.get_ec2_metric_history")
+    def test_metrics_history_aws_failure(self, mock_history):
+        mock_history.side_effect = Exception("Simulated AWS failure")
+
+        response = self.client.get(
+            f"/api/monitoring/{self.instance_id}/history/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(
+            response.data["error"],
+            "Unable to fetch CloudWatch metric history",
+        )
+
+    def test_current_metrics_requires_authentication(self):
+        client = APIClient()
+        response = client.get(
+            f"/api/monitoring/{self.instance_id}/"
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_metrics_history_requires_authentication(self):
+        client = APIClient()
+        response = client.get(
+            f"/api/monitoring/{self.instance_id}/history/"
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
